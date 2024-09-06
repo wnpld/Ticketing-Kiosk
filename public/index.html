@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="scaffolded-by" content="https://github.com/dart-lang/sdk">
+    <title>Ticket Kiosk</title>
+    <link id="bs-css" href="/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <link href="print.css" media="print" rel="stylesheet">
+    <script src="/jquery/jquery-3.7.1.min.js"></script>
+    <script defer src="out.js"></script>
+    <style>
+        @media screen{
+            #print {
+                display: none;
+            }
+        }
+    </style>
+</head>
+    <body>
+        <div class="main">
+            <div class="container">
+                <div class="row mt-2">
+                <div class="col-10">
+                    <div class="container px-4 text-center" id="scan">
+                        <h1 id="scantext">Please scan your library card to get started.</h1>
+                        <h2 id="bcerror"></h2>
+                        <h3 id="eventlistheader">Today's Remaining Ticketed Events</h3>
+                        <div class="row gx-5">
+                            <div class="col"><div class="p-3" id="eventlist"></div></div>
+                        </div>
+                        <div class="row gx-5">
+                          <div class="col"><img src="images/appcardscan.gif"></div>
+                        </div>
+                        <div class="row gx-5">
+                            <div class="col"><div class="p-3"><button id="manualentry" class="btn btn-success btn-lg">Manually Enter Card/Phone Number</button></div></div>
+                        </div>
+                    </div>
+                    <div class="container px-4 text-center" id="manual" style="display: none;">
+                        <h1 id="manualtext">Enter your libary barcode or phone number</h1>
+                        <h2 id="manualdescription">Out-of-district cards and phone numbers can only be used to get event tickets starting 5 minutes before the event starts.</h2>
+                        <h3 class="placeholder-wave"><span id="enteredbarcode" class="placeholder col-7"></span></h3>
+                        <div class="mx-auto">
+                                <div class="container pb-3" style="max-width: 400px;">
+                                    <div class="btn-group">
+                                        <button id="seven"><img src="images/07button.png"></button>
+                                        <button id="eight"><img src="images/08button.png"></button>
+                                        <button id="nine"><img src="images/09button.png"></button>
+                                    </div>
+
+                                    <div class="btn-group">
+                                        <button id="four"><img src="images/04button.png"></button>
+                                        <button id="five"><img src="images/05button.png"></button>
+                                        <button id="six"><img src="images/06button.png"></button>
+                                    </div>
+
+                                    <div class="btn-group">
+                                        <button id="one"><img src="images/01button.png"></button>
+                                        <button id="two"><img src="images/02button.png"></button>
+                                        <button id="three"><img src="images/03button.png"></button>
+                                    </div>
+
+
+                                    <div class="btn-group">
+                                        <button id="zero"><img src="images/00button.png"></button>                                    
+                                        <button id="backspace"><img src="images/bsbutton.png"></button>
+                                    </div>
+                            </div>
+                        </div>
+                        <div class="btn-group">
+                            <button id="manualsubmit" class="btn btn-success btn-lg">Submit Card/Phone Number</button>
+                            <button id="manualcancel" class="btn btn-danger btn-lg">Cancel</button>
+                        </div>
+                    </div>
+                    <div id="selectevent" style="display: none;">
+                        <h1 id="seheader">For which event would you like tickets?</h1>
+                        <div id="eventinfo"></div>
+                        <div><button id="eventcancel">Cancel</button></div>
+                    </div>
+                    <div id="selecttickets" style="display: none;">
+                        <div class="container mx-auto">
+                            <h1 id="stheader">Select Tickets</h1>
+                            <h2 id="ticketevent"></h2>
+                            <h3 id="tickettime"></h3>
+                            <h4><span id="ticketages"></span><span id="ticketagequal"></span></h4>
+                        </div>
+                        <div id="adulttickets">
+                            <h1 id="adultticketsheader">Adult Tickets</h1>
+                            <div class="alert alert-danger pb-3" id="adultticketsnote" style="display: none;"></div>
+                            <div class="btn-group pb-3">
+                                <button id="adultsub"><img id="adultminus" src="images/minusoff150.png" height="150" width="150"></button>
+                                <img id="adulttotal" src="images/one150.png">
+                                <button id="adultadd"><img id="adultplus" src="images/pluson150.png"></button>
+                            </div>
+                        </div>
+                        <div id="childtickets">
+                            <h1 id="childticketsheader">Child Tickets</h1>
+                            <div class="alert alert-primary pb-3" id="childticketsnote"><span id="cnotei">Note: all children for this event must between </span><span id="cnoteages">0-5</span><span id="cnoteagequal"> years</span><span id="cnoteii"> old.</span></div>
+                            <div class="btn-group pb-3">
+                                <button id="childsub"><img id="childminus" src="images/minusoff150.png"></button>
+                                <img id="childtotal" src="images/one150.png">
+                                <button id="childadd"><img id="childplus" src="images/pluson150.png"></button>
+                            </div>
+                        </div>
+                        <div id="ticketform">
+                            <input type="hidden" name="adulttickets" id="adultticketsform" value="1">
+                            <input type="hidden" name="childtickets" id="childticketsform" value="1">
+                            <input type="hidden" name="eventid" id="eventidform" value="">
+                            <input type="hidden" name="identifier" id="identifierform" value="">
+                            <input type="hidden" name="capstatus" id ="capstatusform" value="">
+                            <input type="hidden" name="eventname" id="eventnameform" value="">
+                            <input type="hidden" name="eventtime" id="eventtimeform" value="">
+                            <input type="hidden" name="eventlocation" id="eventlocationform" value="">
+                            <div class="btn-group">
+                                <button id="formbutton" class="btn btn-success btn-lg">Request Tickets</button>
+                                <button id="ticketscancel" class="btn btn-danger btn-lg">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="finish" style="display: none;">
+                        <h1 id="finishheader">Collect Tickets</h1>
+                        <p id="finishtext">Your tickets are being printed.  Please collect them from the ticket dispenser.</p>
+                    </div>
+                    <div id="error" style="display: none;">
+                        <h1 id="errorheader"></h1>
+                        <p id="errorinfo"></p>
+                        <h2 id="counter"></h2>
+                    </div>
+                </div>
+                <div id="dnp" class="col-2">
+                    <div id="sidebar">
+                        <div class="btn-group-vertical">
+                            <button id="english" class="mb-1 mt-1"><img src="images/us.png"></button>
+                            <button id="spanish" class="mb-1"><img src="images/mexico.png"></button>
+                            <button id="russian" class="mb-1"><img src="images/russia.png"></button>
+                            <button id="polish" class="mb-1"><img src="images/poland.png"></button>
+                            <button id="chinese" class="mb-1"><img src="images/china.png"></button>
+                            <button id="tradchinese" class="mb-1"><img src="images/taiwan.png"></button>
+                        </div>
+                    </div>
+                </div> 
+            </div>
+            <div id="print">
+                <h1 id="eventprint"></h1>
+                <h2 id="timeprint"></h2>
+                <h3 id="roomprint"></h3>
+                <p id="dateprint"></p>
+                <div id="ageprint" class="audience"></div>
+                <p id="countprint"></p>
+                <p id="codeprint"></p>
+                <img id="emoji01" style="display: none;" src="images/emoji01.png">
+                <img id="emoji02" style="display: none;" src="images/emoji02.png">
+                <img id="emoji03" style="display: none;" src="images/emoji03.png">
+                <img id="emoji04" style="display: none;" src="images/emoji04.png">
+                <img id="emoji05" style="display: none;" src="images/emoji05.png">
+                <img id="emoji06" style="display: none;" src="images/emoji06.png">
+                <img id="emoji07" style="display: none;" src="images/emoji07.png">
+                <img id="emoji08" style="display: none;" src="images/emoji08.png">
+                <img id="emoji09" style="display: none;" src="images/emoji09.png">
+                <img id="emoji10" style="display: none;" src="images/emoji10.png">
+                <img id="emoji11" style="display: none;" src="images/emoji11.png">
+                <img id="emoji12" style="display: none;" src="images/emoji12.png">
+                <img id="emoji13" style="display: none;" src="images/emoji13.png">
+                <img id="emoji14" style="display: none;" src="images/emoji14.png">
+                <img id="emoji15" style="display: none;" src="images/emoji15.png">
+                <img id="emoji16" style="display: none;" src="images/emoji16.png">
+                <img id="emoji17" style="display: none;" src="images/emoji17.png">
+                <img id="emoji18" style="display: none;" src="images/emoji18.png">
+                <img id="emoji19" style="display: none;" src="images/emoji19.png">
+                <img id="emoji20" style="display: none;" src="images/emoji20.png">
+                <img id="emoji21" style="display: none;" src="images/emoji21.png">
+                <img id="emoji22" style="display: none;" src="images/emoji22.png">
+                <img id="emoji23" style="display: none;" src="images/emoji23.png">
+                <img id="emoji24" style="display: none;" src="images/emoji24.png">
+                <img id="emoji25" style="display: none;" src="images/emoji25.png">
+                <img id="emoji26" style="display: none;" src="images/emoji26.png">
+                <img id="emoji27" style="display: none;" src="images/emoji27.png">
+                <img id="emoji28" style="display: none;" src="images/emoji28.png">
+                <img id="emoji29" style="display: none;" src="images/emoji29.png">
+                <img id="emoji30" style="display: none;" src="images/emoji30.png">
+                <img id="emoji31" style="display: none;" src="images/emoji31.png">
+                <img id="emoji32" style="display: none;" src="images/emoji32.png">
+                <img id="emoji33" style="display: none;" src="images/emoji33.png">
+            </div>
+        </div>
+        </div>
+        <footer id="footer" class="footer mt-auto py-3 bg-body-tertiary">
+            <div class="container">
+                <div id="footer" class="alert alert-info" style="display: none;"></div>
+            </div>
+        </footer>
+    
+        <script src="bootstrap/js/bootstrap.bundle.min.js"></script>
+    </body>
+</html>

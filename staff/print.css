@@ -1,0 +1,45 @@
+@media print {
+    #scan,
+    #selectevent,
+    #selecttickets,
+    #finish,
+    #sidebar,
+    #closed,
+    #dnp,
+    #footer,
+    #navbuttonwrappers {
+        display: none;
+    }
+    #print {
+        display: block;
+        width: 100%;
+    }
+    @page {
+        size: 72mm 110mm;
+        margin: 0.1in;
+    }
+    body {
+        font: 12pt Arial, san-serif;
+        background: #fff;
+        color: #000;
+        text-align: center;
+    }
+    h1 {
+        font-size: 18pt;
+    }
+    h2 {
+        font-size: 24pt;
+        font-weight: bold;
+    }
+    h3 {
+        font-size: 16pt;
+    }
+    .audience {
+        font-size: 24pt;
+        font-weight: bold;
+    }
+    #codeprint {
+        font-size: 8pt;
+    }
+
+}
