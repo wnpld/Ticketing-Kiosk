@@ -10,51 +10,82 @@ my $db_name = $Common::databasename;
 my $dsn = "DBI:mysql:database=$db_name";
 
 my $q = CGI->new;
-my ($id, $query, $eventid);
+my ($scope, $id, $childcount, $adultcount, $eventid);
 $id = $q->param('id');
 
-if (!defined($q->param('id')) || !defined($q->param('action')) || !defined($q->param('eventid'))) {
+if (!defined($q->param('TicketId')) || !defined($q->param('Scope')) || !defined($q->param('EventId')) || !defined($q->param('ChildCount')) || !defined($q->param('AdultCount'))) {
     #Something's very wrong.  Leave.
-    print "Content-type: text/plain\n\n";
     print "Location: " . $Common::serverprotocol . "://" . $Common::serveraddress . "/" . $Common::managementdir . "/\n\n";
     exit;
 }
 
-if ($q->param('eventid') =~ /^\d+$/) {
-    $eventid = $q->param('eventid');
+if ($q->param('EventId') =~ /^\d+$/) {
+    $eventid = $q->param('EventId');
 } else {
     #Invalid Event ID. Leave
     print "Location: " . $Common::serverprotocol . "://" . $Common::serveraddress . "/" . $Common::managementdir . "/\n\n";
     exit;
 }
 
-if ($q->param('id') =~ /^\d+$/) {
-    $id = $q->param('id');
+if ($q->param('TicketId') =~ /^\d+$/) {
+    $id = $q->param('TicketId');
 } else {
     #Invalid ID. Leave
     print "Location: " . $Common::serverprotocol . "://" . $Common::serveraddress . "/" . $Common::managementdir . "/eventinfo.php?eventid=$eventid\n\n";
     exit;
 }
 
-$dbh = DBI->connect($dsn, $user_name, $password, { RaiseError => 1} ) or die &return_error("Could not connect to database", $DBI::errstr);
-
-if ($q->param('action') eq "hold") {
-    #get ticket quantity - we're adding tickets for the canceled order to the current held
-    #quantity for a new total
-    $sth=$dbh->prepare('SELECT (t.Adults + t.Children + e.TicketsHeld) AS Tickets FROM Tickets t INNER JOIN TicketedEvents e ON t.EventID = e.EventID WHERE t.TicketID = ?') or die &return_error("SQL Error", "Error preparing ticket total query: " . $DBI::errstr);
-    $sth->execute($id) or die &return_error("SQL Error","Error getting ticket total: " . $DBI::errstr);
-    my ($tickets) = $sth->fetchrow_array;
-
-    #Add ticket quantity to the held total
-    $sth=$dbh->prepare('UPDATE TicketedEvents e INNER JOIN Tickets t ON e.EventID = t.EventID SET e.TicketsHeld = ? WHERE t.TicketID = ?') or die &return_error("SQL Error", "Error preparing event update statement: " . $DBI::errstr);
-    $sth->execute($tickets, $id) or die &return_error("SQL Error", "Error updating event record: " . $DBI::errstr);
-
+if ($q->param('Scope') =~ /^[a-z]{3,5}$/) {
+    $scope = $q->param('Scope');
+} else {
+    #Invalid scope, assume entire ticket being cancelled
+    $scope == "all";
 }
-#If there's no hold the ticket record can just be deleted
 
-#Delete ticket record
-$sth=$dbh->prepare('DELETE FROM Tickets WHERE TicketID = ?') or die &return_error("SQL Error", "Error preparing ticket deletion.");
-$sth->execute($id);
+if ($scope ne "all") {
+    if ($scope eq "adult") {
+        if ($q->param('AdultCount') =~ /^\d$/) {
+            $adultcount = $q->param('AdultCount');
+            if ($adultcount < 1) {
+                #This value makes no sense as a starting point for reducing adult tickets
+                #Switch to just deleting all tickets
+                $scope = "all";
+            }
+        }
+    } elsif ($scope eq "child") {
+        if ($q->param('ChildCount') =~ /^\d$/) {
+            $childcount = $q->param('ChildCount');
+            if ($childcount <= 1) {
+                #This value makes no sense as a starting point for reducing child tickets
+                #Switch to just deleting all tickets
+                $scope = "all";
+            }
+        }
+    } else {
+        #Child and Adult are the only valid values other than All.  Switch to all.
+        $scope = "all";
+    }
+}
+
+$dbh = DBI->connect($dsn, $user_name, $password, { RaiseError => 1} ) or die &return_error("Could not connect to database: ", $DBI::errstr);
+
+if ($scope eq "all") {
+    #Delete ticket record
+    $sth=$dbh->prepare('DELETE FROM Tickets WHERE TicketID = ?') or die &return_error("SQL Error", "Error preparing ticket deletion: ", $DBI::errstr);
+    $sth->execute($id) or die &return_error("SQL Error", "Error deleting tickets: ", $DBI::errstr);
+} else {
+    #Update ticket record with new ticket total for children or adults
+    my ($group, $newtickets);
+    if ($scope eq "child") {
+        $group = "Children";
+        $newtickets = $childcount - 1;
+    } else {
+        $group = "Adults";
+        $newtickets = $adultcount - 1;
+    }
+    $sth=$dbh->prepare('UPDATE Tickets SET ' . $group . ' = ' . $newtickets . ' WHERE TicketID = ?') or die &return_error("SQL Error", "Error preparing update query to reduce ticket count: " . $DBI::errstr);
+    $sth->execute($id) or die &return_error("SQL Error", "Error running update query to reduce ticket count: " . $DBI::errstr);
+}
 
 print "Location: " . $Common::serverprotocol . "://" . $Common::serveraddress . "/" . $Common::managementdir . "/eventinfo.php?eventid=$eventid\n\n";
 exit;

@@ -1,4 +1,4 @@
-<?php require_once('Connections/ticketingdb.php');
+<d?php require_once('Connections/ticketingdb.php');
 require_once('common.php');
 
 mysqli_select_db($ticketingdb, $database_ticketingdb);
@@ -13,7 +13,7 @@ if (isset($_REQUEST['programid'])) {
 }
 
 if ($programid != "new") {
-  $query_programdata = $ticketingdb->prepare("SELECT ProgramName, ProgramTime, ProgramDays, AgeRange, SecondTierMinutes, LocationID, DefaultHeld FROM TicketedPrograms WHERE ProgramID = ?");
+  $query_programdata = $ticketingdb->prepare("SELECT ProgramName, ProgramTime, ProgramDays, AgeRange, SecondTierMinutes, LocationID, DefaultHeld, Capacity, Grace FROM TicketedPrograms WHERE ProgramID = ?");
   $query_programdata->bind_param('i',$programid);
   $query_programdata->execute() or die(mysqli_error($ticketingdb));
   $programdata = $query_programdata->get_result();
@@ -27,12 +27,13 @@ if ($programid != "new") {
 }
 
 $locationinfo = array();
-$query_locationdata = $ticketingdb->prepare("SELECT LocationID, LocationDescription, LocationCapacity, GraceSpaces from TicketLocations ORDER BY LocationDescription ASC");
+$query_locationdata = $ticketingdb->prepare("SELECT LocationID, LocationDescription, LocationCapacity, GraceSpaces, DefaultHeld from TicketLocations ORDER BY LocationDescription ASC");
 $query_locationdata->execute() or die(mysqli_error($ticketingdb));
 $locationdata = $query_locationdata->get_result();
 while ($row = mysqli_fetch_assoc($locationdata)) {
   $locationinfo[$row['LocationID']]['Description'] = $row['LocationDescription'];
   $locationinfo[$row['LocationID']]['Capacity'] = $row['LocationCapacity'];
+  $locationinfo[$row['LocationID']]['DefaultHeld'] = $row['DefaultHeld'];
   $locationinfo[$row['LocationID']]['Grace'] = $row['GraceSpaces'];
 }
 
@@ -102,7 +103,28 @@ $days = explode (",", $programinfo['ProgramDays']);
           alert("Please select at least one weekday.");
           return false;
         }
-        
+      }
+
+      function updateCapacityGrace() {
+        var rooms = {};
+        <?php foreach ($locationinfo AS $id => $values) {
+          echo "rooms[$id] = {};";
+          echo "rooms[$id].capacity = " . $values['Capacity'] . ";";
+          echo "rooms[$id].grace = " . $values['Grace'] . ";";
+          echo "rooms[$id].held = " . $values['DefaultHeld'] . ";";
+        } ?>
+        var id = document.getElementById("LocationID").value;
+        if (rooms[id].capacity != null) {
+          document.getElementById("Capacity").max=rooms[id].capacity;
+          document.getElementById("Capacity").value=rooms[id].capacity;
+         }
+        if (rooms[id].grace != null) {
+          document.getElementById("Grace").max=rooms[id].grace;
+          document.getElementById("Grace").value=rooms[id].grace;
+        }
+        if (rooms[id].held != null) {
+          document.getElementById("DefaultHeld").value=rooms[id].held;
+        }
       }
     </script>
     </head>
@@ -232,42 +254,70 @@ $days = explode (",", $programinfo['ProgramDays']);
           </div>
           <div class="input-group mb-3">
             <span class="input-group-text">Room</span>
-            <select class="form-select" name="LocationID">
+            <select class="form-select" name="LocationID" onchange="updateCapacityGrace()">
               <?php 
+              $defaultcapacity = 0;
+              $defaultgrace = 0;
+              $defaultheld = 0;
               foreach ($locationinfo AS $id => $values) { ?>
               <option value="<?php echo $id; ?>"<?php if ($id == $programinfo['LocationID']) echo " selection"; ?>><?php echo $values['Description'] . " (Capacity: " . $values['Capacity'] . " + " . $values['Grace'] . ")"; ?></option>
-            <?php } ?>
+              <?php
+                if ($defaultcapacity == 0) {
+                  $defaultcapacity = $values['Capacity'];
+                } 
+                if ($defaultgrace == 0) {
+                  $defaultgrace = $values['Grace'];
+                }
+                if ($defaultheld == 0) {
+                  $defaultheld = $values['DefaultHeld'];
+                }
+              } ?>
             </select>
           </div>
           <div class="input-group mb-3">
-            <span class="input-group-text">Tickets Automatically Held in Reserve</span>
-            <input type="number" class="form-control" name="DefaultHeld" value="<?php echo ($programid != "new") ? $programinfo['DefaultHeld'] : 0; ?>" min=0>
+          <span class="input-group-text">Capacity</span>
+            <input type="number" class="form-control" id="Capacity" name="Capacity" min="5" max="40" value="<?php echo ($programid != "new") ? $programinfo['Capacity'] : $defaultcapacity; ?>">
+          </div>
+          <div class="input-group mb-3">
+            <span class="input-group-text">Grace Spaces</span>
+            <input type="number" class="form-control" id="Grace" name="Grace" min="0" max="5" value="<?php echo ($programid != "new") ? $programinfo['Grace'] : $defaultgrace; ?>">
+          </div>
+          <div class="input-group mb-3">
+            <span class="input-group-text">Tickets Reserved for In District</span>
+            <input type="number" class="form-control" id="DefaultHeld" name="DefaultHeld" value="<?php echo ($programid != "new") ? $programinfo['DefaultHeld'] : $defaultheld; ?>" min=0>>
           </div>
           <input type="hidden" name="ProgramID" value="<?php echo $programid; ?>">
           <div class="input-group">
             <input class="btn btn-primary btn-lg" type="submit" value="<?php echo ($programid != "new") ? "Update " : "Create "; ?> Program" onclick="return validate()">
           </div>
+          <a href="programs.php" class="btn btn-danger btn-lg" role="button">Cancel</a>
         </form>
               </div>
               </div>
         <?php if ($programid != "new") { ?>
           <hr>
             <div class="row">
-              <div class="col-3 mx-auto">
-          <form action="/cgi-bin/addystickprog.pl" method="POST">
-            <input type="hidden" name="ProgramID" value="<?php echo $programid; ?>">
-            <input type="hidden" name="action" value="archive">
-            <input class="btn btn-warning btn-lg" type="submit" value="Archive this Program">
-          </form>
-        </div>
-        <div class="col-3 mx-auto">
-          <form action="/cgi-bin/addystickprog.pl" method="POST">
-            <input type="hidden" name="ProgramID" value="<?php echo $programid; ?>">
-            <input type="hidden" name="action" value="delete">
-            <input class="btn btn-danger btn-lg" type="submit" value="Delete this Program (<?php echo $eventinfo['Total']; ?> Associated Event<?php if ($eventinfo['Total'] != 1) echo "s"; ?>)" onclick="return confirm('Are you sure you want to delete this program and its associated events.  Associated events won\'t be available for statistics.')">
-          </form>
-        </div>
-        </div>
+              <div class="col-md-6 mx-auto">
+                <div class="mt-3 text-center">
+                  <form action="/cgi-bin/addystickprog.pl" method="POST">
+                    <input type="hidden" name="ProgramID" value="<?php echo $programid; ?>">
+                    <input type="hidden" name="action" value="archive">
+                    <input class="btn btn-warning btn-lg" type="submit" value="Archive this Program">
+                  </form>
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-6 mx-auto">
+                <div class="mt-3 text-center">
+                  <form action="/cgi-bin/addystickprog.pl" method="POST">
+                    <input type="hidden" name="ProgramID" value="<?php echo $programid; ?>">
+                    <input type="hidden" name="action" value="delete">
+                    <input class="btn btn-danger btn-lg" type="submit" value="Delete this Program (<?php echo $eventinfo['Total']; ?> Associated Event<?php if ($eventinfo['Total'] != 1) echo "s"; ?>)" onclick="return confirm('Are you sure you want to delete this program and its associated events.  Associated events won\'t be available for statistics.')">
+                  </form>
+                </div>
+              </div>
+            </div>
         <?php } ?>
         
        </div>

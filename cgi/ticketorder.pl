@@ -2,10 +2,12 @@
 use DBI;
 use CGI;
 use Common;
+use Try::Tiny;
 
 #Adjustable variables
 #ticketmax is the maximum tickets of a type that can be acquired
-my $ticketmax = 2;
+my $aticketmax = 2; #Adult Tickets
+my $jticketmax = 3; #Child Tickets
 
 #List of languages
 my @languages = ('english', 'spanish', 'polish', 'russian', 'chinese', 'tradchinese');
@@ -21,17 +23,24 @@ my $q = CGI->new;
 my $adulttickets = $q->param('adult');
 my $childtickets = $q->param('child');
 
+#Variable for total tickets -- needed to pull from held total for in-district requests
+my $tickettotal = 0;
+
 #troubleshooting
 #$adulttickets = 1;
 #$childtickets = 2;
 
 #Adult & Child tickets need to be checked to make sure that they make sense
 if (($adulttickets =~ /^\d+$/) && ($childtickets =~ /^\d+/)) {
-    if (($adulttickets < 1) || ($adulttickets > $ticketmax)) {
+    if (($adulttickets < 1) || ($adulttickets > $aticketmax)) {
         $adulttickets = undef;
+    } else {
+        $tickettotal += $adulttickets;
     }
-    if (($childtickets < 1) || ($childtickets > $ticketmax)) {
+    if (($childtickets < 1) || ($childtickets > $jticketmax)) {
         $childtickets = undef;
+    } else {
+        $tickettotal += $childtickets;
     }
 } else {
     $adulttickets = undef;
@@ -41,17 +50,11 @@ if (($adulttickets =~ /^\d+$/) && ($childtickets =~ /^\d+/)) {
 #Make sure id looks right
 my $id = $q->param('identifier');
 
-#troubleshooting
-#$id = "21240000639655";
-
 if ($id !~ /^[0-9a-f]+$/) {
     $id = undef;
 }
 
 my $library = $q->param('library');
-
-#troubleshooting
-#$library = 7;
 
 #library needs to be checked to make sure it's in the right range
 if ($library =~ /^\d+$/) {
@@ -95,16 +98,35 @@ if ($language =~ /^[a-z]+$/) {
 ##If any variable failed a check, return a failure message
 #otherwise, add them to the database.
 
+#Add tickets to database.  Originally the held count was decreased, but this is unnecessary as it can 
+#be counted on the fly based on district library.
+
 if (defined($adulttickets) && defined($childtickets) && defined($id) && defined($library) && defined($eventid) && defined($language)) {
-    my $dbh = DBI->connect($dsn, $user_name, $password, { RaiseError => 1} ) or die &return_error("Could not connect to database", $DBI::errstr);
-    $sth = $dbh->prepare(q{INSERT INTO Tickets (EventID, Adults, Children, Identifier, DistrictResidentID, Language) VALUES (?, ?, ?, UNHEX(?), ?, ?)}) or die &return_error("Error preparing ticket insert query.", $DBI::errstr);
-    $sth->execute($eventid, $adulttickets, $childtickets, $id, $library, $language) or die &return_error("Error executing ticket query.", $DBI::errstr);
-    print "Content-type: text/plain\n\n";
-    print "{ \"status\": \"success\" }";
-    exit;
+    #This returns a JSON block which needs to be interpreted by the patron machine, making error reporting
+    #particularly dicey.  We're using a try/catch to make sure that unformatted errors don't slip through
+    try {
+        my $dbh = DBI->connect($dsn, $user_name, $password, { PrintError => 0, RaiseError => 1} );
+        try {
+            $sth = $dbh->prepare(q{INSERT INTO Tickets (EventID, Adults, Children, Identifier, DistrictResidentID, Language) VALUES (?, ?, ?, UNHEX(?), ?, ?)});
+            try {
+                $sth->execute($eventid, $adulttickets, $childtickets, $id, $library, $language);
+                print "Content-type: text/plain\n\n";
+                print "{ \"status\": \"success\" }";
+            } catch {
+                &return_error("Error", $_);
+            } finally {
+                exit;
+            }
+        } catch {
+            &return_error("Error", $_);
+            exit;
+        }
+    } catch {
+        &return_error("Error", $_);
+        exit;
+    }
 } else {
-    print "Content-type: text/plain\n\n";
-    print "{ \"status\": \"Error - At least one value sent for processing not valid.\" }";
+    &return_error("Error", "At least one value sent for processing not valid.");
     exit;
 }
 
@@ -112,5 +134,4 @@ sub return_error {
     my ($simple, $detailed) = @_;
     print "Content-type: text/plain\n\n";
     print "{ \"status\": \"$simple\", \"detail\": \"$detailed\" }";
-    exit;
 };

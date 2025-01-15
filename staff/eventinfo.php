@@ -5,13 +5,13 @@ if (isset($_REQUEST['eventid'])) {
         $eventid = $_REQUEST['eventid'];
         mysqli_select_db($ticketingdb, $database_ticketingdb);
         $formatted_today = date('Y-m-d');
-        $query_eventdetails = sprintf("SELECT tp.ProgramName, tp.ProgramTime, (IFNULL(SUM(t.Adults),0) + IFNULL(SUM(t.Children),0)) AS TicketsIssued, tl.LocationDescription, tl.LocationCapacity, tl.GraceSpaces, te.TicketsHeld FROM TicketedPrograms tp INNER JOIN TicketedEvents te ON tp.ProgramID = te.ProgramID LEFT JOIN Tickets t ON te.EventID = t.EventID INNER JOIN TicketLocations tl ON tp.LocationID = tl.LocationID WHERE te.EventDate = '$formatted_today' AND te.EventID = '$eventid'");
+        $query_eventdetails = sprintf("SELECT tp.ProgramName, tp.ProgramTime, (IFNULL(SUM(t.Adults),0) + IFNULL(SUM(t.Children),0)) AS TicketsIssued, tl.LocationDescription, tl.LocationCapacity, tl.GraceSpaces, te.TicketsHeld, (SELECT IFNULL((SUM(IFNULL(Adults,0)) + SUM(IFNULL(Children,0))),0) FROM Tickets WHERE (DistrictResidentID = 6 OR DistrictResidentID = 7) AND EventID = '$eventid') AS DistrictTickets FROM TicketedPrograms tp INNER JOIN TicketedEvents te ON tp.ProgramID = te.ProgramID LEFT JOIN Tickets t ON te.EventID = t.EventID INNER JOIN TicketLocations tl ON tp.LocationID = tl.LocationID WHERE te.EventDate = '$formatted_today' AND te.EventID = '$eventid'");
         $eventdetails = mysqli_query($ticketingdb, $query_eventdetails) or die(mysqli_error($ticketingdb));
         $totalRows_eventdetails = mysqli_num_rows($eventdetails);
         if ($totalRows_eventdetails == 1) {
             $eventinfo = mysqli_fetch_assoc($eventdetails);
             
-            $query_ticketlist = sprintf("SELECT TicketID, Adults, Children, HEX(Identifier) AS Identifier FROM Tickets WHERE EventID = '$eventid'");
+            $query_ticketlist = sprintf("SELECT TicketID, Adults, Children, HEX(Identifier) AS Identifier, d.DistrictName AS Library FROM Tickets t INNER JOIN Districts d ON t.DistrictResidentID = d.DistrictID WHERE EventID = '$eventid'");
             $ticketlist = mysqli_query($ticketingdb, $query_ticketlist) or die(mysqli_error($ticketingdb));
             $totalRows_ticketlist = mysqli_num_rows($ticketlist);
             
@@ -23,6 +23,8 @@ if (isset($_REQUEST['eventid'])) {
     <title>Event Tickets</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+	<script src="/bootstrap/js/jquery.min.js"></script>
+	<script src="/bootstrap/js/popper.js"></script>
     <link rel="stylesheet" href="/bootstrap/css/bootstrap.min.css" />
 	<script type="text/javascript">
 		async function highlightTickets() {
@@ -48,13 +50,6 @@ if (isset($_REQUEST['eventid'])) {
 			[].forEach.call(elems, function(el) {
 				el.classList.remove("table-danger");
 			});
-		}
-
-		function cancelTickets(url) {
-			var confirmed = confirm("Do you really want to cancel these tickets?");
-			if (confirmed == true) {
-				window.location.replace(url);
-			}
 		}
 	</script>
   </head>
@@ -88,10 +83,17 @@ if (isset($_REQUEST['eventid'])) {
 	<div class="card">
 		<div class="row">
 			<div class="col-4">
+			<?php
+					#Calculate remaining district tickets since this can be a mess to do later
+					$district_remaining = $eventinfo['TicketsHeld'] - $eventinfo['DistrictTickets'];
+					if ($district_remaining < 0) {
+						$district_remaining = 0;
+					}
+				?>
 				<p><strong>Tickets Issued:</strong> <?php echo $eventinfo['TicketsIssued']; ?></p>
-				<p><strong>Tickets Held:</strong> <?php echo $eventinfo['TicketsHeld']; ?></p>
-				<p><strong>Kiosk Tickets Remaining:</strong> <?php echo ($eventinfo['LocationCapacity'] + $eventinfo['GraceSpaces']) - ($eventinfo['TicketsIssued'] + $eventinfo['TicketsHeld']); ?></p>
-				<p><strong>Total Tickets Remaining:</strong> <?php echo ($eventinfo['LocationCapacity'] + $eventinfo['GraceSpaces']) - $eventinfo['TicketsIssued']; ?></p>
+				<p><strong>Priority Tickets Remaining:</strong> <?php echo $district_remaining; ?></p>
+ 				<p><strong>General Tickets Remaining:</strong> <?php echo ($eventinfo['LocationCapacity'] - ($eventinfo['TicketsIssued'] + $district_remaining)); ?></p>
+ 				<p><strong>Total Tickets Remaining:</strong> <?php echo ($eventinfo['LocationCapacity'] - $eventinfo['TicketsIssued']); ?> (Grace Tickets: <?php echo $eventinfo['GraceSpaces']; ?>)</p>
 			</div>
 			<div class="col-2 mx-auto">
 <?php
@@ -135,15 +137,16 @@ if (isset($_REQUEST['eventid'])) {
 	      	<tbody>
 	      	<?php
 		      	while($ticketinfo = mysqli_fetch_assoc($ticketlist)) { 
-					$cancelurl = $protocol . "://" . $domain . "/" . $cgi . "/ysticketaction.pl?id=" . $ticketinfo['TicketID'] . "&action=free&eventid=" . $eventid;
-					$cancelholdurl = $protocol . "://" . $domain . "/" . $cgi . "/ysticketaction.pl?id=" . $ticketinfo['TicketID'] . "&action=hold&eventid=" . $eventid;
 					$id = substr($ticketinfo['Identifier'],-8,8);
 
 					if (preg_match('/([0-9][0-9])\1{15}/', $ticketinfo['Identifier'], $matches)) {
 						$id = "Staff " . $matches[1];
 					}
 				?>
-	      		<tr id="<?php echo $ticketinfo['Identifier']; ?>"><td><?php echo $ticketinfo['Adults']; ?></td><td><?php echo $ticketinfo['Children']; ?></td><td><?php echo $id; ?></td><td><a href="#" onclick='cancelTickets("<?php echo $cancelurl; ?>")'>Cancel and Free</a> / <a href="#" onclick='cancelTickets("<?php echo $cancelholdurl; ?>")'>Cancel and Hold</a> / <a href="issuetickets.php?ticketid=<?php echo $ticketinfo['TicketID']; ?>">Add Tickets</a> / <a href="printtickets.php?ticketid=<?php echo $ticketinfo['TicketID']; ?>&reprint=true" target="_blank">Reprint</a></td></tr>
+				<tr id="<?php echo $ticketinfo['Identifier']; ?>"><td><?php echo $ticketinfo['Adults']; ?></td><td><?php echo $ticketinfo['Children']; ?></td><td><?php echo $id; ?> (<?php echo $ticketinfo['Library']; ?>)</td><td>
+ 					<button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#cancelModal" data-bs-ticketinfo="<?php echo $ticketinfo['Adults']; ?>,<?php echo $ticketinfo['Children']; ?>,<?php echo $ticketinfo['TicketID']; ?>,<?php echo $eventid; ?>">Cancel Tickets</button>
+ 					<a href="issuetickets.php?ticketid=<?php echo $ticketinfo['TicketID']; ?>" class="btn btn-primary btn-sm">Add Tickets</a>
+ 					<a href="printtickets.php?ticketid=<?php echo $ticketinfo['TicketID']; ?>&reprint=true" target="_blank" class="btn btn-primary btn-sm">Reprint</a></td></tr>
 	      	<?php }
 
 	      	?>
@@ -157,6 +160,49 @@ if (isset($_REQUEST['eventid'])) {
 	   </div>
 	  </div>
 	 </div>
+ 	 <div class="modal fade" id="cancelModal" tabindex="-1" role="dialog" aria-labelledby="cancelModalLabel" aria-hidden="true">
+		<div class="modal-dialog" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="cancelModalLabel">Cancel and Free Ticket(s)</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+						<span aria-hidden="true">&times;</span>
+					</button>
+				</div>
+				<div class="modal-body">
+					<p><em>Cancel tickets and make them available to others</em></p>
+					<form action="/cgi-bin/ysticketaction.pl" method="GET">
+						<div class="form-check">
+							<input class="form-check-input" type="radio" id="cancelAll" name="Scope" value="all" checked>
+							<label class="form-check-label" for="cancelAll">
+								Cancel all tickets for this card
+							</label>
+						</div>
+						<div class="form-check">
+							<input class="form-check-input" type="radio" id="cancelOneAdult" name="Scope" value="adult">
+							<label class="form-check-label" for="cancelOneAdult">
+								Cancel one adult ticket
+							</label>
+						</div>
+						<div class="form-check">
+							<input class="form-check-input" type="radio" id="cancelOneChild" name="Scope" value="child">
+							<label class="form-check-label" for="cancelOneChild">
+								Cancel one child ticket
+							</label>
+						</div>
+						<input type="hidden" id="TicketId" name="TicketId" value="">
+						<input type="hidden" id="EventId" name="EventId" value="">
+						<input type="hidden" id="ChildCount" name="ChildCount" value="0">
+						<input type="hidden" id="AdultCount" name="AdultCount" value="0">
+						<button type="submit" class="btn btn-primary">Cancel Ticket(s)</button>
+					</form>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abort</button>
+ 				</div>
+			</div>
+		</div>
+	</div>
 	 <script type="text/javascript">
 		//Input field
 		var input = document.getElementById("identifier");
@@ -168,11 +214,29 @@ if (isset($_REQUEST['eventid'])) {
 				document.getElementById("idsend").click();
 			}
 		});
-
-
 	</script>
-	<script src="/bootstrap/js/jquery.min.js"></script>
-<script src="/bootstrap/js/popper.js"></script>
+	<script type="text/javascript">
+		var cancelModal = document.getElementById('cancelModal');
+		cancelModal.addEventListener('show.bs.modal', function (event) {
+			var button = event.relatedTarget;
+			var ticketinfo = button.getAttribute('data-bs-ticketinfo');
+			const info = ticketinfo.split(",");
+			//Element 0 is Adult Tickets
+			if (info[0] <= 1) {
+				cancelModal.querySelector('#cancelOneAdult').setAttribute('disabled', true);
+			} else {
+				cancelModal.querySelector('#AdultCount').value = info[0];
+			}
+			//Element 1 is Child Tickets
+			if (info[1] <= 1) {
+				cancelModal.querySelector('#cancelOneChild').setAttribute('disabled', true);
+			} else {
+				cancelModal.querySelector('#ChildCount').value = info[1]
+			}
+			cancelModal.querySelector('#TicketId').value = info[2];
+			cancelModal.querySelector('#EventId').value = info[3];
+		})
+	</script>
 <script src="/bootstrap/js/bootstrap.min.js"></script>
 	</body>
 </html>

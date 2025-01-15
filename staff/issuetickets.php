@@ -16,15 +16,26 @@ if (isset($_REQUEST['ticketid'])) {
         $action = "extra";
         $ticketid = $_REQUEST['ticketid'];
     }
-    $query_tickettotal = $ticketingdb->prepare("SELECT SUM(TicketsHeld) AS TicketsHeld, SUM(TicketsAvailable) AS TicketsAvailable FROM ((SELECT e.TicketsHeld, 0 AS TicketsAvailable FROM TicketedEvents e INNER JOIN Tickets t ON e.EventID = t.EventID WHERE t.TicketID = ?) UNION ALL (SELECT 0 AS TicketsHeld, ((l.LocationCapacity + l.GraceSpaces) - (SUM(IFNULL(t.Adults,0)) + SUM(IFNULL(t.Children,0)))) AS TicketsAvailable FROM TicketedEvents e INNER JOIN TicketedPrograms p ON e.ProgramID = p.ProgramID INNER JOIN TicketLocations l ON p.LocationID = l.LocationID LEFT JOIN Tickets t ON e.EventID = t.EventID WHERE e.EventID = (SELECT EventID FROM Tickets WHERE TicketID = ?) GROUP BY e.EventID)) t");
-    $query_tickettotal->bind_param('ii', $ticketid, $ticketid);
+    $query_tickettotal = $ticketingdb->prepare("SELECT ReservedTickets, AllTickets, GraceTickets, SUM(DistrictTickets) AS DistrictTickets, SUM(OODTickets) AS OODTickets, CurrentDistrict FROM ((SELECT tp.DefaultHeld AS ReservedTickets, tp.Capacity AS AllTickets, tp.Grace AS GraceTickets, (SUM(IFNULL(t.Adults, 0)) + SUM(IFNULL(t.Children, 0))) AS DistrictTickets, 0 AS OODTickets, (SELECT DistrictResidentID FROM Tickets WHERE TicketID = ?) AS CurrentDistrict FROM Tickets t INNER JOIN TicketedEvents te ON t.EventID = te.EventID INNER JOIN TicketedPrograms tp ON te.ProgramID = tp.ProgramID WHERE te.EventID = (SELECT EventID FROM Tickets WHERE TicketID = ?) AND (t.DistrictResidentID >= 6 OR t.DistrictResidentID IS NULL)) UNION ALL (SELECT tp.DefaultHeld AS ReservedTickets, tp.Capacity AS AllTickets, tp.Grace AS GraceTickets, 0 AS DistrictTickets, (SUM(IFNULL(t.Adults, 0)) + SUM(IFNULL(t.Children, 0))) AS OODTickets, (SELECT DistrictResidentID FROM Tickets WHERE TicketID = ?) AS CurrentDistrict FROM Tickets t INNER JOIN TicketedEvents te ON t.EventID = te.EventID INNER JOIN TicketedPrograms tp ON te.ProgramID = tp.ProgramID WHERE te.EventID = (SELECT EventID FROM Tickets WHERE TicketID = ?) AND (t.DistrictResidentID <= 5 OR t.DistrictResidentID IS NULL))) t");
+    $query_tickettotal->bind_param('iiii', $ticketid, $ticketid, $ticketid, $ticketid);
     $query_tickettotal->execute() or die(mysqli_error($ticketingdb));
     $tickettotal = $query_tickettotal->get_result();
     $ticketstates = mysqli_fetch_assoc($tickettotal);
-    $ticketsheld = $ticketstates['TicketsHeld'];
-    $kiosktickets = $ticketstates['TicketsAvailable'] - $ticketsheld;
+    $reserved = $ticketstates['ReservedTickets'];
+    $alltickets = $ticketstates['AllTickets'];
+    $grace = $ticketstates['GraceTickets'];
+    $district = $ticketstates['DistrictTickets'];
+    $ood = $ticketstates['OODTickets'];
+    $current = $ticketstates['CurrentDistrict'];
+    $taken = $district + $ood;
+    if ($current <= 5) {
+      #Out of District
+      $available = $alltickets - ($reserved + $ood);
+    } else {
+      $available = $alltickets - $taken;
+    }
 } else if (isset($_REQUEST['eventid'])) {
-    #We're adding tickets from the staff interface
+    #We're issuing new tickets from the staff interface
     if (!is_numeric($_REQUEST['eventid'])) {
         #Invalid ID
         header("Location: $protocol://$domain/$currentdir/\n\n");
@@ -33,13 +44,17 @@ if (isset($_REQUEST['ticketid'])) {
         $action = "new";
         $eventid = $_REQUEST['eventid'];
     }
-    $query_tickettotal = $ticketingdb->prepare("SELECT SUM(TicketsHeld) AS TicketsHeld, SUM(TicketsAvailable) AS TicketsAvailable FROM ((SELECT e.TicketsHeld, 0 AS TicketsAvailable FROM TicketedEvents e WHERE e.EventID = ?) UNION ALL (SELECT 0 AS TicketsHeld, ((l.LocationCapacity + l.GraceSpaces) - (SUM(IFNULL(t.Adults,0)) + SUM(IFNULL(t.Children,0)))) AS TicketsAvailable FROM TicketedEvents e INNER JOIN TicketedPrograms p ON e.ProgramID = p.ProgramID INNER JOIN TicketLocations l ON p.LocationID = l.LocationID LEFT JOIN Tickets t ON e.EventID = t.EventID WHERE e.EventID = ? GROUP BY e.EventID)) t");
-    $query_tickettotal->bind_param('ii', $eventid, $eventid);
+    $query_tickettotal = $ticketingdb->prepare("SELECT tp.DefaultHeld AS ReservedTickets, tp.Capacity AS AllTickets, tp.Grace AS GraceTickets, (SUM(IFNULL(t.Adults,0)) + SUM(IFNULL(t.Children,0))) AS AcquiredTickets FROM TicketedEvents te INNER JOIN TicketedPrograms tp ON te.ProgramID = tp.ProgramID INNER JOIN Tickets t ON te.EventID = t.EventID WHERE te.EventID = ?");
+    $query_tickettotal->bind_param('i', $eventid);
     $query_tickettotal->execute() or die(mysqli_error($ticketingdb));
     $tickettotal = $query_tickettotal->get_result();
     $ticketstates = mysqli_fetch_assoc($tickettotal);
-    $ticketsheld = $ticketstates['TicketsHeld'];
-    $kiosktickets = $ticketstates['TicketsAvailable'] - $ticketsheld;
+    $reserved = $ticketstates['ReservedTickets'];
+    $alltickets = $ticketstates['AllTickets'];
+    $grace = $ticketstates['GraceTickets'];
+    $taken = $ticketstates['AcquiredTickets'];
+    $current = 7;
+    $available = $alltickets - $taken;
 } else {
     #Something's wrong.  Redirect
     header("Location: $protocol://$domain/$currentdir/\n\n");
@@ -55,22 +70,40 @@ if (isset($_REQUEST['ticketid'])) {
     <link rel="stylesheet" href="/bootstrap/css/bootstrap.min.css" />
     <script>
       function verify_count() {
-        var ticketsheld = <?php echo $ticketsheld; ?>;
-        var kiosktickets = <?php echo $kiosktickets; ?>;
+        var reserved = <?php echo $reserved; ?>;
+        var alltickets = <?php echo $alltickets; ?>;
+        var grace = <?php echo $grace; ?>;
+        var taken = <?php echo $taken; ?>;
+        var current = <?php echo $current; ?>;
+        var available = <?php echo $available; ?>;
         var adults = Number(document.getElementById("adults").value);
         var children = Number(document.getElementById("children").value);
         var requested = adults+children;
-        var heldleft = ticketsheld - requested;
-        var kioskleft = kiosktickets;
-        if (heldleft < 0) {
-          kioskleft = kioskleft + heldleft;
-        }
-        if (heldleft >= 0) {
-          return confirm("This order will use " + requested + " tickets of " + ticketsheld + " held tickets leaving " + heldleft + " held tickets and " + kioskleft + " kiosk tickets. Please confirm.");
-        } else if ((heldleft < 0) && (kioskleft >= 0)) {
-          return confirm("This order for " + requested + " tickets will use " + ticketsheld + " held tickets as well as " + Math.abs(heldleft) + " kiosk tickets, leaving " + kioskleft + " kiosk tickets.  Please confirm.");
-        } else if (kioskleft < 0) {
-          return confirm("This order for " + requested + " tickets will use " + ticketsheld + " held tickets and all " + kiosktickets + " remaining kiosk tickets.  It will exceed the stated room capacity by " + Math.abs(kioskleft) + ".  Please confirm.");
+        if (available >= requested) {
+          //No Problems here
+          if (current >= 6) {
+            return confirm("This order will use " + requested + " tickets which will come out of the in-district reserved pool of tickets.");
+          } else {
+            return confirm("This order will use " + requested + " tickets which will come out of the general pool as the patron is out of district.")
+          }
+        } else if ((available + grace) >= requested) {
+          if (current >= 6) {
+            return confirm("This order will use " + requested + " tickets which will come out of the in-district reserved pool.  Grace tickets will also be used.");
+          } else {
+            return confirm("This order will use " + requested + " tickets which will come out of the general pool as the patron is out of district.  Grace tickets will also needed to fulfil this request.");
+          }
+        } else {
+          if (current <= 5) {
+            if ((alltickets - taken) > requested) {
+              return confirm("This user is not confirmed as in district and only in district tickets remain.  Are you sure you want to take " + requested + " tickets out of the remaining tickets for this patron?");
+            } else if (((alltickets + grace) - taken) < requested) {
+              var deficit = Math.abs((alltickets + grace) - (taken + requested));
+              return confirm("Issuing this ticket will take the room over capacity by " + deficit + " for a user not confirmed as in district.  Are you sure you want to do issue " + requested + " more tickets to this patron?");
+            }
+          } else {
+            var deficit = Math.abs((alltickets + grace) - (taken + requested));
+            return confirm("Issuing this ticket will take the room over capacity by " + deficit + ".  Are you sure you wish to issue these " + requested + " tickets?");
+          }
         }
       }
     </script>

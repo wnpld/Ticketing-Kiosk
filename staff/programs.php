@@ -16,7 +16,7 @@ while ($row = mysqli_fetch_assoc($programlist)) {
   }
 }
 
-$query_futureevents = $ticketingdb->prepare("SELECT e.ProgramID, COUNT(e.EventID) AS Events FROM TicketedEvents e INNER JOIN TicketedPrograms p ON e.ProgramID = p.ProgramID WHERE e.EventDate >= date('Y-m-d') AND p.Archived = 0 GROUP BY e.ProgramID");
+$query_futureevents = $ticketingdb->prepare("SELECT e.ProgramID, COUNT(e.EventID) AS Events FROM TicketedEvents e INNER JOIN TicketedPrograms p ON e.ProgramID = p.ProgramID WHERE e.EventDate >= CURRENT_DATE() AND p.Archived = 0 GROUP BY e.ProgramID");
 $query_futureevents->execute() or die(mysqli_error($ticketingdb));
 $futureevents = $query_futureevents->get_result();
 while ($row = mysqli_fetch_assoc($futureevents)) {
@@ -59,6 +59,7 @@ while ($row = mysqli_fetch_assoc($futureevents)) {
           <li>Changing the weekdays for a program will not affect existing scheduled events for that program.</li>
           <li>Changing the time of a program <strong>will</strong> change the time for any existing dates for that program.  If you need a need to add events for a program at a different time, create a new program with that time.</li>
           <li>Archiving a program will leave past and future events for a program untouched but will will remove the program from this page.  If you need to keep data for stats, do this.</li>
+          <li>Rooms can be <a href="rooms.php">added or edited on this page</a>.</li>
           <li>Deleting a program will delete it and all past and future events associated with it.</li>
         </ul>
         <div class="mx-auto"><a class="btn btn-primary btn-lg" href="editprogram.php">Create a New Program</a></div>
@@ -70,7 +71,7 @@ while ($row = mysqli_fetch_assoc($futureevents)) {
       <th>Scheduled Weekdays</th>
       <th>Age Range</th>
       <th>Room</th>
-      <th>Out-of-District Minutes</th>
+      <th>General Availability Minutes</th>
       <th>Scheduled Events</th>
     </tr>
   </thead>
@@ -123,7 +124,11 @@ while ($row = mysqli_fetch_assoc($futureevents)) {
         <td><?php echo $values['SecondTierMinutes']; ?></td>
         <td><?php if ($values['EventCount'] > 0) { ?>
           <a href="eventlist.php?ProgramID=<?php echo $id; ?>&action=edit"><?php echo $values['EventCount']; ?></a>
-        <?php } else { echo "0"; } ?>
+          &nbsp;&nbsp;<a href="calendar.php?ProgramID=<?php echo $id; ?>" class="badge rounded-pill text-bg-primary" role="button">Schedule Events</a>
+          <?php } else { 
+          echo "0"; 
+          echo "&nbsp;&nbsp;<a href=\"calendar.php?ProgramID=$id\" class=\"badge rounded-pill text-bg-primary\" role=\"button\">Schedule Events</a>";
+        } ?>
         </td>
       </tr>
    <?php }

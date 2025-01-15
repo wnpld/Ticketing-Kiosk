@@ -42,15 +42,6 @@ if ($action eq "extra") {
         $sth=$dbh->prepare("UPDATE Tickets SET Adults = ?, Children = ? WHERE TicketID = ?") or die &return_error("SQL Error","Could not prepare exiting ticket update query: " . $DBI::errstr);
         $sth->execute($adulttickets, $childtickets, $ticketid) or die &return_error("SQL Error","Error executing existing ticket update query: " . $DBI::errstr);
 
-        $held = $held - ($newchildtickets + $newadulttickets);
-        if ($held < 0) {
-            $held = 0;
-        }
-
-        $sth=$dbh->prepare("UPDATE TicketedEvents te INNER JOIN Tickets t ON t.EventID = te.EventID SET TicketsHeld = ? WHERE t.TicketID = ?") or die &return_error("SQL Error","Error preparing held tickets quantity: " . $DBI::errstr);
-        $sth->execute($held, $ticketid) or die &return_error("SQL Error","Error executing held ticket quantity update: " . $DBI::errstr);
-
-
         print "Location: " . $Common::serverprotocol . "://" . $Common::serveraddress . "/" . $Common::managementdir . "/printtickets.php?ticketid=$ticketid&reprint=false&children=$newchildtickets&adults=$newadulttickets\n\n";
         exit;
     } else {
@@ -106,16 +97,6 @@ if ($action eq "extra") {
     $sth->execute($eventid, $newadulttickets, $newchildtickets, $code) or die &return_error("SQL Error", "Could not insert staff tickets: " . $DBI::errstr);
     my $ticketid = $dbh->last_insert_id();
     $sth->finish;
-
-    #Finally, if there are held tickets, remove them from the event information
-    $held = $held - ($newadulttickets + $newchildtickets);
-    if ($held < 0) {
-        #It's not necessary to have negative held tickets
-        $held = 0;
-    }
-
-    $sth = $dbh->prepare("UPDATE TicketedEvents SET TicketsHeld = ? WHERE EventID = ?") or die &return_error("SQL Error","Error preparing held tickets update: " . $DBI::errstr);
-    $sth->execute($held, $eventid) or die &return_error("SQL Error","Error executing held tickets update:" . $DBI::errstr);
 
     print "Location: " . $Common::serverprotocol . "://" . $Common::serveraddress . "/" . $Common::managementdir . "/printtickets.php?ticketid=$ticketid&reprint=false&children=$newchildtickets&adults=$newadulttickets\n\n";
     exit;

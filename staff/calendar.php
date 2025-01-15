@@ -1,5 +1,5 @@
-<?php require_once('Connections/ticketingdb.php');
-require_once('common.php');
+<?php require_once 'Connections/ticketingdb.php';
+require_once 'common.php';
 
 mysqli_select_db($ticketingdb, $database_ticketingdb);
 $query_programinfo = $ticketingdb->prepare("SELECT ProgramID, ProgramName, ProgramTime, ProgramDays FROM TicketedPrograms WHERE Archived = 0 ORDER BY ProgramName ASC, ProgramTime ASC, ProgramDays ASC");
@@ -28,6 +28,12 @@ while ($row = mysqli_fetch_assoc($programinfo)) {
 
 $startdatestring = date("Y-m-d");
 $enddatestring = date("Y-m-d");
+
+if (isset($_REQUEST['ProgramID'])) {
+  $requestedid = $_REQUEST['ProgramID'];
+} else {
+  $requestedid = 0;
+}
 
 ?>
 <!DOCTYPE html>
@@ -99,7 +105,7 @@ $enddatestring = date("Y-m-d");
       <select class="form-select" id="genProgram" name="ProgramID" onchange="calendarAdjust()">
       <?php
       foreach ($programdata AS $id => $values)  { ?>
-      <option value="<?php echo $id; ?>"><?php echo $values['Name'] . " (" . $values['Days'] . " at " . $values['Time'] . ")"; ?></option>
+      <option value="<?php echo $id; ?>" <?php if ($id == $requestedid) { echo "SELECTED";} ?>><?php echo $values['Name'] . " (" . $values['Days'] . " at " . $values['Time'] . ")"; ?></option>
       <?php } ?>
       </select>
     </div>
@@ -141,7 +147,7 @@ $enddatestring = date("Y-m-d");
             <select class="form-select" id="editProgram" name="ProgramID">
             <?php
       foreach ($programdata AS $id => $values)  { ?>
-      <option value="<?php echo $id; ?>"><?php echo $values['Name'] . " (" . $values['Days'] . " at " . $values['Time'] . ")"; ?></option>
+      <option value="<?php echo $id; ?>" <?php if ($id == $requestedid) { echo "SELECTED"; } ?>><?php echo $values['Name'] . " (" . $values['Days'] . " at " . $values['Time'] . ")"; ?></option>
       <?php } ?>
       </select>
       <input type="hidden" name="action" value="edit">

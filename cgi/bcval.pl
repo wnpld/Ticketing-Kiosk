@@ -142,21 +142,10 @@ my $dbh = DBI->connect($dsn, $user_name, $password, { RaiseError => 1} ) or die 
 my $today = strftime '%Y-%m-%d', localtime;
 my $time = strftime '%R', localtime;
 my $sth;
-if ($indistrict == 1) {
-    #Registration start time set statically as 8 hours before the event starts
-    $sth = $dbh->prepare('SELECT p.ProgramName, p.ProgramTime, ' . $beforeminutes . ' AS RegistrationDelay, l.LocationDescription, p.AgeRange, l.LocationCapacity, l.GraceSpaces, SUM(IFNULL(t.Children,0) + IFNULL(t.Adults,0)) + e.TicketsHeld AS Tickets, e.EventID FROM TicketedPrograms p INNER JOIN TicketedEvents e ON p.ProgramID = e.ProgramID INNER JOIN TicketLocations l ON p.LocationID = l.LocationID LEFT JOIN Tickets t ON e.EventID = t.EventID WHERE e.EventDate = ? AND ? BETWEEN DATE_SUB(p.ProgramTime, INTERVAL ' . $beforeminutes . ' MINUTE) AND DATE_ADD(p.ProgramTime, INTERVAL ' . $bufferminutes . ' MINUTE) GROUP BY p.ProgramTime, p.ProgramName, l.LocationDescription, l.LocationCapacity, l.GraceSpaces ORDER BY p.ProgramTime ASC') or die &return_error("Could not prepare in-district query.", $DBI::errstr);
-    $sth->execute($today, $time) or die &return_error("Could not execute in-district query.", $DBI::errstr);
-} elsif ($indistrict == 2) {
-    #This is used only for information gathering, such as on page loads.  We want the full
-    #list of upcoming programs but we want the registration dely for out of district cards
-    #or phone numbers
-    $sth = $dbh->prepare('SELECT p.ProgramName, p.ProgramTime, p.SecondTierMinutes AS RegistrationDelay, l.LocationDescription, p.AgeRange, l.LocationCapacity, l.GraceSpaces, SUM(IFNULL(t.Children,0) + IFNULL(t.Adults,0)) + e.TicketsHeld AS Tickets, e.EventID FROM TicketedPrograms p INNER JOIN TicketedEvents e ON p.ProgramID = e.ProgramID INNER JOIN TicketLocations l ON p.LocationID = l.LocationID LEFT JOIN Tickets t ON e.EventID = t.EventID WHERE e.EventDate = ? AND ? BETWEEN DATE_SUB(p.ProgramTime, INTERVAL ' . $beforeminutes . ' MINUTE) AND DATE_ADD(p.ProgramTime, INTERVAL ' . $bufferminutes . ' MINUTE) GROUP BY p.ProgramTime, p.ProgramName, l.LocationDescription, l.LocationCapacity, l.GraceSpaces ORDER BY p.ProgramTime ASC') or die &return_error("Could not prepare informational query", $DBI::errstr);
-    $sth->execute($today, $time) or die &return_error("Could not execute informational query.", $DBI::errstr);
-} else {
-    #Registration start type set dynamically based on the SecondTierMinutes value
-    $sth = $dbh->prepare('SELECT p.ProgramName, p.ProgramTime, p.SecondTierMinutes AS RegistrationDelay, l.LocationDescription, p.AgeRange, l.LocationCapacity, l.GraceSpaces, SUM(IFNULL(t.Children,0) + IFNULL(t.Adults,0)) + e.TicketsHeld AS Tickets, e.EventID FROM TicketedPrograms p INNER JOIN TicketedEvents e ON p.ProgramID = e.ProgramID INNER JOIN TicketLocations l ON p.LocationID = l.LocationID LEFT JOIN Tickets t ON e.EventID = t.EventID WHERE e.EventDate = ? AND ? BETWEEN DATE_SUB(p.ProgramTime, INTERVAL p.SecondTierMinutes MINUTE) AND DATE_ADD(p.ProgramTime, INTERVAL ' . $bufferminutes . ' MINUTE) GROUP BY p.ProgramTime, p.ProgramName, l.LocationDescription, l.LocationCapacity, l.GraceSpaces ORDER BY p.ProgramTime ASC;') or die &return_error("Could not prepare out of district query", $DBI::errstr);
-    $sth->execute($today, $time) or die &return_error("Could not execute out of district query", $DBI::errstr);
-}
+
+#This ugly SQL query gets a list of events and their ticket quantities.
+$sth = $dbh->prepare('SELECT ProgramName, ProgramTime, RegistrationDelay, LocationDescription, AgeRange, LocationCapacity, GraceSpaces, TicketsHeld, EventID, SUM(OoDTickets) AS OoDTickets, SUM(DTickets) AS DTickets FROM ((SELECT p.ProgramName, p.ProgramTime, p.SecondTierMinutes As RegistrationDelay, l.LocationDescription, p.AgeRange, p.Capacity AS LocationCapacity, p.Grace as GraceSpaces, e.TicketsHeld, e.EventID, 0 AS OoDTickets, 0 AS DTickets FROM TicketedPrograms p INNER JOIN TicketedEvents e ON p.ProgramID = e.ProgramID INNER JOIN TicketLocations l ON p.LocationID = l.LocationID WHERE e.EventDate = ? AND ? BETWEEN DATE_SUB(p.ProgramTime, INTERVAL ' . $beforeminutes . ' MINUTE) AND DATE_ADD(p.ProgramTime, INTERVAL ' . $bufferminutes . ' MINUTE)) UNION ALL (SELECT p.ProgramName, p.ProgramTime, p.SecondTierMinutes As RegistrationDelay, l.LocationDescription, p.AgeRange, p.Capacity AS LocationCapacity, p.Grace as GraceSpaces, e.TicketsHeld, e.EventID, (IFNULL(t.Adults,0) + IFNULL(t.Children,0)) AS OoDTickets, 0 AS DTickets FROM TicketedPrograms p INNER JOIN TicketedEvents e ON p.ProgramID = e.ProgramID INNER JOIN TicketLocations l ON p.LocationID = l.LocationID INNER JOIN Tickets t ON e.EventID = t.EventID WHERE e.EventDate = ? AND ? BETWEEN DATE_SUB(p.ProgramTime, INTERVAL ' . $beforeminutes . ' MINUTE) AND DATE_ADD(p.ProgramTime, INTERVAL ' . $bufferminutes . ' MINUTE) AND t.DistrictResidentID < 6)  UNION ALL  (SELECT p.ProgramName, p.ProgramTime, p.SecondTierMinutes As RegistrationDelay, l.LocationDescription, p.AgeRange, p.Capacity AS LocationCapacity, p.Grace as GraceSpaces, e.TicketsHeld, e.EventID, 0 AS OoDTickets, (IFNULL(t.Adults,0) + IFNULL(t.Children,0)) AS DTickets FROM TicketedPrograms p INNER JOIN TicketedEvents e ON p.ProgramID = e.ProgramID INNER JOIN TicketLocations l ON p.LocationID = l.LocationID INNER JOIN Tickets t ON e.EventID = t.EventID WHERE e.EventDate = ? AND ? BETWEEN DATE_SUB(p.ProgramTime, INTERVAL ' . $beforeminutes . ' MINUTE) AND DATE_ADD(p.ProgramTime, INTERVAL ' . $bufferminutes . ' MINUTE) AND t.DistrictResidentID > 5)) t GROUP BY EventID ORDER BY ProgramTime ASC;') or die &return_error("Could not prepare out of district query", $DBI::errstr);
+$sth->execute($today, $time, $today, $time, $today, $time) or die &return_error("Could not execute out of district query", $DBI::errstr);
 
 my @events;
 while (my @row = $sth->fetchrow_array) {
@@ -164,20 +153,24 @@ while (my @row = $sth->fetchrow_array) {
     my $time = $row[1];
     my $program = $row[0];
     my $location = $row[3];
-    if ($row[4] =~ /(\d-\d)([ym])/) {
+    if ($row[4] =~ /(\d+-\d+)([ym])/) {
         $ages = $1;
         $agequal = $2;
     }
     my $regdelay = $row[2];
     my $capacity = $row[5];
     my $gracespaces = $row[6];
-    my $tickets = 0;
-    if (defined($row[7])) {
-	$tickets = $row[7];
+    my $ticketsheld = $row[7];
+    my $oodtickets = 0;
+    my $dtickets = 0;
+    if (defined($row[9])) {
+        $oodtickets = $row[9];
+    }
+    if (defined($row[10])) {
+        $dtickets = $row[10];
     }
     my $eventid = $row[8];
-	my $eventinfo = "{\"program\": \"$program\", \"time\": \"$time\", \"registrationdelay\": \"$regdelay\", \"location\": \"$location\", \"ages\": \"$ages\", \"age_qualifier\": \"$agequal\", \"capacity\": $capacity, \"grace\": $gracespaces, \"reserved\": $tickets, \"eventid\": \"$eventid\" }";
-    push(@events, $eventinfo);
+	my $eventinfo = "{\"program\": \"$program\", \"time\": \"$time\", \"registrationdelay\": $regdelay, \"location\": \"$location\", \"ages\": \"$ages\", \"age_qualifier\": \"$agequal\", \"capacity\": $capacity, \"grace\": $gracespaces, \"eventid\": \"$eventid\", \"oodtickets\": $oodtickets, \"dtickets\": $dtickets, \"ticketsheld\": $ticketsheld }";
 }
 
 $response .= "\"events\": [ ";

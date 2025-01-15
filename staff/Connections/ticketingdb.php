@@ -10,7 +10,7 @@ try {
     $ticketingdb = new mysqli($hostname_ticketingdb, $username_ticketingdb, $password_ticketingdb, $database_ticketingdb);
 } catch (Exception $e) {
     echo "Service unavailable";
-    echo "message: " . $e->message;
+    echo "message: " . $e->getMessage();
     exit;
 }
 

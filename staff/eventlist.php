@@ -151,11 +151,10 @@ if ($action == "edit") {
               foreach ($events AS $id => $date) { 
                 if ($counter != 0) {
                    if ($counter % 3 == 0) { ?>
-              </div>
-              </div>
-              <div class="row">
+                    </div>
+                    <div class="row">
                 <?php } else { ?>
-                </div>
+            
               <?php }
               } ?>
               <div class="col-3"> 
@@ -163,59 +162,66 @@ if ($action == "edit") {
                 <input type="checkbox" class="btn-check" id="btn-check-<?php echo $id; ?>" name="EventID" value="<?php echo $id; ?>" autocomplete="off">
                 <label class="btn btn-success" for="btn-check-<?php echo $id; ?>" onclick="toggleDelete(<?php echo $id; ?>)"><?php echo $date; ?><span style="font-weight: bold; font-size: .75em; padding-top: .35em; padding-bottom: .35em; padding-left: .65em; padding-right: .65em;" class="position-absolute top-0 start-100 translate-middle rounded-pill text-bg-warning" id="badge-check-<?php echo $id; ?>">Keeping</span></label>
               </div>
+              </div>
               <?php 
               $counter++;
               }
             ?>
             </div>
-                </div>
+          <?php if ($counter != 0) { ?>
             <input type="submit" class="btn btn-primary btn-large" value="Delete Selected Events">
+          <?php } else { ?>
+            <a href="calendar.php?ProgramID=<?php echo $programid; ?>" class="btn btn-danger" role="button">No future events.  Return to the event generation page.</a> 
+            <?php } ?>
         <?php } else { ?>
-          <h3>Add New Events</h3>
-          <form action="/cgi-bin/ticketdropadd.pl" method="POST">
-          <?php if (count($oldeventdates) > 0) { ?>
-          <p>There was some overlap between already scheduled events and the date range you selected.  Any overlapping dates have been dropped from this list.</p>
-          <?php }
-          $starttimestamp = strtotime($startdate)+7200; //Some time is added here to make sure we don't have any problems with DST
-          $endtimestamp = strtotime($enddate)+7200;
-          $proposed = array();
-          for ($x = $starttimestamp; $x <= $endtimestamp; $x += 86400) {
-            if (str_contains($programdays, date('l', $x))) {
-              if (in_array(date('Y-m-d', $x), $oldeventdates)) {
-                continue;
-              } else {
-                $shortdate = date('Y-m-d', $x);
-                $proposed[$shortdate] = date('D, F j, Y', $x);
+            <h3>Add New Events</h3>
+            <form action="/cgi-bin/ticketdropadd.pl" method="POST">
+            <?php if (count($oldeventdates) > 0) { ?>
+              <p>There was some overlap between already scheduled events and the date range you selected.  Any overlapping dates have been dropped from this list.</p>
+            <?php } 
+            $starttimestamp = strtotime($startdate)+7200; //Some time is added here to make sure we don't have any problems with DST
+            $endtimestamp = strtotime($enddate)+7200;
+            $proposed = array();
+            for ($x = $starttimestamp; $x <= $endtimestamp; $x += 86400) {
+              if (str_contains($programdays, date('l', $x))) {
+                if (in_array(date('Y-m-d', $x), $oldeventdates)) {
+                  continue;
+                } else {
+                  $shortdate = date('Y-m-d', $x);
+                  $proposed[$shortdate] = date('D, F j, Y', $x);
+                }
               }
             }
-          }
-          $counter = 0;
+            $counter = 0;
           ?>
           <div class="row">
             <?php
           foreach ($proposed AS $date => $formatted) { 
             if ($counter != 0) {
               if ($counter % 3 == 0) { ?>
-                </div>
-              </div>
-              <div class="row">
-              <?php } else { ?>
-              </div>
-              <?php }  
+          </div>
+        </div>
+        <div class="row">
+          <?php } else { 
+               }  
             } ?>
           <div class="col-3">
             <div class="input-group mb-3">
             <input type="checkbox" class="btn-check" id="btn-check-<?php echo $counter; ?>" autocomplete="off" name="EventDate" value="<?php echo $date; ?>" checked>
             <label class="btn btn-success" for="btn-check-<?php echo $counter; ?>" onclick="toggleSkip(<?php echo $counter; ?>)"><?php echo $formatted; ?><span style="font-weight: bold; font-size: .75em; padding-top: .35em; padding-bottom: .35em; padding-left: .65em; padding-right: .65em;" class="position-absolute top-0 start-100 translate-middle rounded-pill text-bg-warning" id="badge-check-<?php echo $counter; ?>">Keeping</span></label>
+          </div>
           </div>            
           <?php 
             $counter++;
           } ?>
           </div>
-        </div>
                   <input type="hidden" name="ProgramID" value="<?php echo $programid; ?>">
+                   <?php if ($counter != 0) { ?>
                   <input type="submit" class="btn btn-primary btn-large" value="Add These Event Dates">
-      <?php  } ?>
+                  <?php } else { ?>
+                  <a href="calendar.php?ProgramId=<?php echo $programid; ?>" class="btn btn-danger" role="button">No Dates Selected. Return to the Event Generation page.</a>
+                  <?php }
+        } ?>
       </form>
 </div>
 </main>

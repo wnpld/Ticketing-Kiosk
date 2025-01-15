@@ -77,10 +77,10 @@ Future<void> main() async {
                     ages = ages + "<span class=\"monthsterm\"> months</span>";
                 }
                 int capacity = eventinfo['capacity'];
-                int reserved = eventinfo['reserved'];
+                int reserved = eventinfo['oodtickets'] + eventinfo['dtickets'];
                 int grace = eventinfo['grace'];
                 String ticketstatus;
-                if ((capacity + grace - reserved) >= 3) {
+                if (((capacity + grace) - reserved) >= 4) {
                     ticketstatus = "<span class=\"badge rounded-pill text-bg-success ticketsbadge\">Tickets Available</span>";
                 } else {
                     ticketstatus = "<span class=\"badge rounded-pill text-bg-danger noticketsbadge\">No Tickets Remaining</span>";
@@ -92,10 +92,11 @@ Future<void> main() async {
             cards and phone numbers.  It is a required field so it's set statically in the
             SQL query as 8 hours for district patrons.  It uses the program's delay value
             for non-district cards*/
-            globals.registrationdelay = int.parse(progInfo['events'][0]['registrationdelay']);
+            globals.registrationdelay = progInfo['events'][0]['registrationdelay'];
 
             //Watch for typed numbers.  These are expected to come from a barcode reader.        
             List<String> typed = [];
+            List<String> startcode = [];
             window.onKeyDown.listen((event) async {
                 /* Some codabar barcodes start and end with a letter A-D.  Many scanners
                 can be set to ignore these, but the scanners we are using do not. The 
@@ -104,7 +105,6 @@ Future<void> main() async {
                 is monitored to see if it matches the startcode.  If it does, the numbers
                 between the letters get sent.  For other barcodes, the enter key is the
                 send trigger. */
-                String startcode = "";
                 RegExp exp = RegExp(r'[ABCD]');
                 String? entered = event.key;
                 if (entered != null) {
@@ -116,17 +116,18 @@ Future<void> main() async {
                         if (typed.length == 0) {
                             bool match = exp.hasMatch(entered);
                             if (match == true) {
-                                startcode = entered;
-                            } else {
+                                startcode.add(entered);
+                            } else if (entered != "Shift") {
                                 typed.add(entered);
                             }
                         } else {
-                            if (startcode.length > 0) {
-                                if (entered == startcode) {
+                            if (startcode.length != 0) {
+                                bool match = exp.hasMatch(entered);
+                                if ((match != true) & (entered != "Shift")) {
+                                    typed.add(entered);
+                                } else {
                                     String barcode = typed.join();
                                     sendNumber(barcode);
-                                } else {
-                                    typed.add(entered);
                                 }
                             } else {
                                 typed.add(entered);
@@ -168,6 +169,7 @@ void changeLanguage(MouseEvent event, String language) {
     document.querySelector('#seheader')?.text = globals.selectEvent[language];
     document.querySelector('#stheader')?.text = globals.selectTickets[language];
     document.querySelector('#ticketsoutspan')?.text = globals.ticketsOut[language];
+    document.querySelector('#genticketsoutspan')?.text = globals.noTicketsNowButton[language];
     document.querySelector('#ticketlimitspan')?.text = globals.limitReached[language];
     ElementList classList = document.querySelectorAll('.monthsterm');
     if (classList != null) {
@@ -332,13 +334,17 @@ Future<void> sendNumber(String barcode) async {
             if ((status != "update") && (status != "ok") && (status != "phone")) {
                 if (valid > 0) {
                     /* SIP status code - may be important.  Display this in the footer. */
-                    sipstatus = bcResponse['error'];
+                    if (bcResponse['error'] != null) {
+                        sipstatus = bcResponse['error'];
+                    }
                     globals.footertext?.style.display = "block";
                     if (sipstatus == "This software is not logged in to the SIP Service") {
                         document.querySelector('#footer')?.text = "There was a problem connecting to the catalog system to verify your card.  Please see a librarian.";
-                    } else {
+                    } else if (sipstatus != "") {                    
                         document.querySelector('#footer')?.text = sipstatus;
                     }
+                } else {
+                    document.querySelector('#footer')?.text = status;
                 }
             }
         } else {
@@ -371,10 +377,10 @@ Future<void> sendNumber(String barcode) async {
                 errorheader = "Out of District Library Card";
             }
             if (errorinfo == null) {
-                errorinfo = "Out of district library cards can only be used to obtain tickets ### minutes before the start of the next program.";
+                errorinfo = "No tickets are currently available for out-of-district users.  Check back ### minutes before the program starts.";
             }
             errorinfo = errorinfo.replaceAll("###", globals.registrationdelay.toString());
-            reportError(errorheader, errorinfo, "cardOOD", 5);                
+            reportError(errorheader, errorinfo, "cardOOD", 10);                
         } else if (valid == 2 && eventsAvailable == false) {
             String? errorheader = globals.phoneErrorheader[language];
             String? errorinfo = globals.phoneErrorinfo[language];
@@ -385,8 +391,15 @@ Future<void> sendNumber(String barcode) async {
                 errorinfo = "Phone numbers can only be used to obtain tickets ### minutes before the start of the next program.";
             }
             errorinfo = errorinfo.replaceAll("###", globals.registrationdelay.toString());
-            reportError(errorheader, errorinfo, "phoneError", 5);
+            reportError(errorheader, errorinfo, "phoneError", 10);
         } else {
+            window.location.reload();
+/*
+            The below code provides an error with a bad scan or invalid card.
+            Bad scans are frequent enough that this is likely unhelpful and it's better
+            to just reload the page, but I'm leaving this in here in case more feedback is 
+            required with invalid card entries.
+            ---
             String? errorheader = globals.barcodeErrorheader[language];
             String? errorinfo = globals.barcodeErrorinfo[language];
             if (errorheader == null) {
@@ -396,7 +409,8 @@ Future<void> sendNumber(String barcode) async {
                 errorinfo = "Double-check the card that you scanned or entered to make sure that it was your current library card.  If you entered a phone number, make sure to enter the entire ten-digit phone number.";
             }
             errorinfo += " (" + barcode + ")";
-            reportError(errorheader, errorinfo, "barcodeError", 5);
+            reportError(errorheader, errorinfo, "barcodeError", 10);
+            */
         }
     } on FormatException catch (e) {
         reportError(e.toString(), bcStatus, "jsonexception");
@@ -423,65 +437,93 @@ event information and determines what events the submitted barcode is eligible f
 based on the results.*/
 Future<void> checkAvailability(String bchash, var events, var ticketlist, int library) async {
     String? language = globals.language;
-    if (events.length > 1) {
-        //If there are multiple events in the result prepare the screen for choosing an event
-        globals.scanblock?.style.display = "none";
-        globals.manualblock?.style.display = "none";
-        globals.seblock?.style.display = "block";
+    int reloadDelay = 10; //This is the amount of delay to wait before refreshing the page
+                          //It will be increased if there are valid events to choose from
 
-        /*These classes are used for turning buttons on and off.
-        an off button is used to identify that a program is happening, but is not
-        available for the user for some reason.*/ 
-        String enabledButtonClass = "btn btn-primary btn-lg";
-        String disabledButtonClass = "btn btn-secondary btn-lg";
+    //If there are multiple events in the result prepare the screen for choosing an event
+    globals.scanblock?.style.display = "none";
+    globals.manualblock?.style.display = "none";
+    globals.seblock?.style.display = "block";
 
-        /*anyeventmatch set to true will block registration for any additional
-        events if the user is already registered for one.  Set to false, they will
-        only be prevented from registering from an event they are already registered for
-        or for an event which is full.*/
-        bool anyeventmatch = true;
+    /*These classes are used for turning buttons on and off.
+    an off button is used to identify that a program is happening, but is not
+    available for the user for some reason.*/ 
+    String enabledButtonClass = "btn btn-primary btn-xlg";
+    String disabledButtonClass = "btn btn-secondary btn-xlg";
 
-        //Loop through all of the events
-        for (int x = 0; x < events.length; x++) {
-            int capacity = events[x]['capacity'];
-            int grace = events[x]['grace'];
-            int tickets = events[x]['reserved'];
+    /*anyeventmatch set to true will block registration for any additional
+    events if the user is already registered for one.  Set to false, they will
+    only be prevented from registering from an event they are already registered for
+    or for an event which is full.*/
+    bool anyeventmatch = true;
 
-            /*Obtain a capacity status value from the capacityCheck function
-            A capacity status of 2 means no restrictions.
-            A capacity status of 1 means that the event is almost full, so only 1 adult
-            ticket will be issued.
-            A capacity status of 0 means that there is no remaining capacity.
-            A capacity status of -1 (not obtained directly through this function) means
-            that the user has hit an event maximum and can't register for additional events.*/
-            int capStatus = capacityCheck(capacity, grace, tickets, library);
+    //Hitting Enter extra times can keep running this and adding elements
+    //Reset the HTML before running
+    document.querySelector('#eventinfo')?.setInnerHtml("");
 
-            /*Ticketlist contains a list of the events for which an identifier
-            has been issued tickets for the current day.  A length of 0 means that
-            the identifier hasn't been issued any tickets.*/
-            if (ticketlist.length > 0) {
-                if (anyeventmatch == true) {
-                    capStatus = -1;
-                } else {
-                    /*This for loop checks to see if a user has already registered
-                    for a specific event.  It assumes that there is only one event
-                    at any given time.*/
-                    for (int y = 0; y < ticketlist.length; y++) {
-                        if (ticketlist[y] == events[x]['time']) {
-                            capStatus = -1;
-                        }
+    //Loop through all of the events
+    for (int x = 0; x < events.length; x++) {
+        int capacity = events[x]['capacity'];
+        int grace = events[x]['grace'];
+        int oodtickets = events[x]['oodtickets'];
+        int dtickets = events[x]['dtickets'];
+        int ticketsheld = events[x]['ticketsheld'];
+        int tickets = oodtickets + dtickets;
+        int openminutes = events[x]['registrationdelay'];
+        String time = events[x]['time'];
+
+        if (library < 6) {
+            //If this is an OOD card
+            final rightnow = DateTime.now();
+            final hourmin = time.split(':');
+            int hour = int.parse(hourmin[0]);
+            int minute = int.parse(hourmin[1]);
+            minute -= openminutes;
+
+            var windowstart = DateTime(rightnow.year, rightnow.month, rightnow.day, hour, minute);
+            if (rightnow.compareTo(windowstart) < 0) {
+                //We not in the window
+                //Tickets are restricted
+                tickets = ticketsheld + oodtickets;
+            } 
+        }
+
+       /*Obtain a capacity status value from the capacityCheck function
+        A capacity status of 2 means no restrictions.
+        A capacity status of 1 means that the event is almost full, so only 1 adult
+        ticket will be issued.
+        A capacity status of 0 means that there is no remaining capacity.
+        A capacity status of -1 (not obtained directly through this function) means
+        that the user has hit an event maximum and can't register for additional events.*/
+        int capStatus = capacityCheck(capacity, grace, tickets, library);
+
+        /*Ticketlist contains a list of the events for which an identifier
+        has been issued tickets for the current day.  A length of 0 means that
+        the identifier hasn't been issued any tickets.*/
+        if (ticketlist.length > 0) {
+            if (anyeventmatch == true) {
+               capStatus = -1;
+            } else {
+                /*This for loop checks to see if a user has already registered
+                for a specific event.  It assumes that there is only one event
+                at any given time.*/
+                for (int y = 0; y < ticketlist.length; y++) {
+                    if (ticketlist[y] == events[x]['time']) {
+                        capStatus = -1;
                     }
                 }
             }
-            //Now that this comparison has been done, create a pretty time
-            String formattedTime = prettyTime(events[x]['time']);
+        }
+        //Now that this comparison has been done, create a pretty time
+        String formattedTime = prettyTime(events[x]['time']);
 
-            //Start building the string which will be put into an event selection button.
-            String programInfo = formattedTime + ' - ' + events[x]['program'] + ' (' + events[x]['ages'].toString();
+        //Start building the string which will be put into an event selection button.
+        String programInfo = formattedTime + ' - ' + events[x]['program'] + ' (' + events[x]['ages'].toString();
 
-            //Age qualifier indicates whether an age is in months or years.
-            String? agequal = events[x]['age_qualifier'];
-            if (agequal != null) {
+        //Age qualifier indicates whether an age is in months or years.
+        String? agequal = events[x]['age_qualifier'];
+        if (agequal != null) {
+            if (agequal == "m") {
                 String? monthsterm = globals.monthsTerm[language];
                 if (monthsterm != null) {
                     programInfo += "<span class=\"monthsterm\">" + monthsterm + "</span>";
@@ -496,99 +538,70 @@ Future<void> checkAvailability(String bchash, var events, var ticketlist, int li
                     programInfo += "<span class=\"yearsterm\"> years</span>";
                 }
             }
-            programInfo += ') - ' + events[x]['location'];
-
-            /* As long as capacity status is positive, allow the user to get tickets */
-            if (capStatus > 0) {
-                String eventid = events[x]['eventid'];
-                String eventname = events[x]['program'];
-                String eventtime = formattedTime;
-                String eventages = events[x]['ages'];
-                String eventlocation = events[x]['location'];
-                String eventagequal = events[x]['age_qualifier'];
-                String buttonid = "eventbutton" + x.toString();
-                String button = '<button id="' + buttonid + '" class="' + enabledButtonClass + ' mb-1">' + programInfo + '</button>';
-                document.querySelector('#eventinfo')?.appendHtml(button);
-                document.querySelector('#' + buttonid)?.onClick.listen((MouseEvent e) => chooseTickets(e, bchash, eventid, eventtime, eventname, eventlocation, eventages, eventagequal, capStatus));
-                print("capstatus=0");
-            } else if (capStatus == -1) {
-                /* A negative capacity status creates an unclickable button with program information
-                as well as telling the user that their ticket limit has been reached for the day. */
-                String? limitReached = globals.limitReached[language];
-                String button;
-                if (limitReached != null) {
-                    button = '<button type="button" class="' + disabledButtonClass + ' mb-1" disabled>*<span id="ticketlimitspan">' + limitReached + '</span>* ' + programInfo +'</button>';
-                } else {
-                    button = '<button type="button" class="' + disabledButtonClass + ' mb-1" disabled>*<span id="ticketlimitspan">Daily Ticket Limit Reached</span>* ' + programInfo +'</button>';
-                }
-                document.querySelector('#eventinfo')?.appendHtml(button);
-                print("capstatus=-1"); 
-            } else {
-                /* This will be for a 0 status, meaning that there is no capacity left in a program.
-                Again, a disabled button will be shown with that information. */
-                String? ticketsOut = globals.ticketsOut[language];
-                String button;
-                if (ticketsOut != null) {
-                    button = '<button type="button" class="' + disabledButtonClass +' mb-1" disabled>*<span id="ticketsoutspan">' + ticketsOut + '</span>* ' + programInfo + '</button>';
-                } else {
-                    button = '<button type="button" class="' + disabledButtonClass +' mb-1" disabled>*<span "ticketsoutspan">No Tickets Remaining</span>* ' + programInfo + '</button>';
-                }
-                document.querySelector('#eventinfo')?.appendHtml(button);
-                print("capstatus=other");
-            }
-        }
-    } else {
-        int capacity = events[0]['capacity'];
-        int grace = events[0]['grace'];
-        int tickets = events[0]['reserved'];
-        String eventid = events[0]['eventid'];
-        String eventtime = prettyTime(events[0]['time']);
-        String eventname = events[0]['program'];
-        String eventlocation = events[0]['location'];
-        String eventages = events[0]['ages'];
-        String age_qualifier = events[0]['age_qualifier'];
-        int capStatus = capacityCheck(capacity, grace, tickets, library);
-        if (ticketlist.length > 0) {
-            if (ticketlist[0] == events[0]['time']) {
-                capStatus = -1;
-            } else {
-                print(ticketlist[0] + " != " + events[0]['time']);
-            }
-        }
-        if (capStatus < 1) {
-            globals.manualblock?.style.display = "none";
-            globals.scanblock?.style.display = "block";
-            if (capStatus == -1) {
-                String? errorheader = globals.alreadyTicketedheader[language];
-                String? errorinfo = globals.alreadyTicketedinfo[language];
-                if (errorheader == null) {
-                    errorheader = "Tickets Already Issued";
-                }
-                if (errorinfo == null) {
-                    errorinfo = "Tickets have already been aquired for this library card today and there is a limit of one event per card.";
-                }
-                reportError(errorheader, errorinfo, "alreadyTicketed", 5);
-            } else {
-                String? errorheader = globals.noTicketsNowheader[language];
-                String? errorinfo = globals.noTicketsNowinfo[language];
-                if (errorheader == null) {
-                    errorheader = "No Tickets Currently Available";
-                }
-                if (errorinfo == null) {
-                    errorinfo = "No tickets are available for this card at this time since district library cards are given priority.  You may try again ### minutes before the event starts.";
-                }
-                errorinfo = errorinfo.replaceAll("###", globals.registrationdelay.toString());
-                reportError(errorheader, errorinfo, "noTicketsNow", 5);
-            }
         } else {
-            //Change the display and capture required variables for ticket selection
-            globals.scanblock?.style.display = "none";
-            globals.manualblock?.style.display = "none";
-            globals.stblock?.style.display = "block";
-            bool multievents = false;
-            ticketForm(capStatus, eventid, eventtime, eventname, eventlocation, eventages, age_qualifier, bchash, multievents);
+            //Don't know why this would happen, but just assume years
+            agequal = "y";
+            String? yearsterm = globals.yearsTerm[language];
+            if (yearsterm != null) {
+                programInfo += "<span class=\"yearsterm\">" + yearsterm + "</span>";
+            } else {
+                programInfo += "<span class=\"yearsterm\"> years</span>";
+            }
+        }
+        programInfo += ') - ' + events[x]['location'];
+
+        /* As long as capacity status is positive, allow the user to get tickets */
+        if (capStatus > 0) {
+            String eventid = events[x]['eventid'];
+            String eventname = events[x]['program'];
+            String eventtime = formattedTime;
+            String eventages = events[x]['ages'];
+            String eventlocation = events[x]['location'];
+            String eventagequal = events[x]['age_qualifier'];
+            String buttonid = "eventbutton" + x.toString();
+            String button = '<button id="' + buttonid + '" class="' + enabledButtonClass + ' mb-1">' + programInfo + '</button>';
+            document.querySelector('#eventinfo')?.appendHtml(button);
+            document.querySelector('#' + buttonid)?.onClick.listen((MouseEvent e) => chooseTickets(e, bchash, eventid, eventtime, eventname, eventlocation, eventages, eventagequal, capStatus));
+            reloadDelay = 90;
+        } else if (capStatus == -1) {
+            /* A negative capacity status creates an unclickable button with program information
+            as well as telling the user that their ticket limit has been reached for the day. */
+            String? limitReached = globals.limitReached[language];
+            String button;
+            if (limitReached != null) {
+                button = '<button type="button" class="' + disabledButtonClass + ' mb-1" disabled>*<span id="ticketlimitspan">' + limitReached + '</span>* ' + programInfo +'</button>';
+            } else {
+                button = '<button type="button" class="' + disabledButtonClass + ' mb-1" disabled>*<span id="ticketlimitspan">Daily Ticket Limit Reached</span>* ' + programInfo +'</button>';
+            }
+            document.querySelector('#eventinfo')?.appendHtml(button);
+        } else if (library < 6) {
+            /* It's likely that the reason that there is no capacity in this case is because
+            there are only in district tickets left until the general availability window.
+            Put up a message that the patron will need to come back later. */
+            String? genTicketsOut = globals.noTicketsNowinfo[language];
+            String button;
+            if (genTicketsOut != null) {
+                button = '<button type="button" class="' + disabledButtonClass +' mb-1" disabled>*<span id="genticketsoutspan">' + genTicketsOut + '</span>* ' + programInfo + '</button>';
+            } else {
+                button = '<button type="button" class="' + disabledButtonClass +' mb-1" disabled>*<span "genticketsoutspan">Only District Cardholder Tickets Remain - Check Back ### Minutes Before Event Start</span>* ' + programInfo + '</button>';
+            }
+            button = button.replaceAll("###", globals.registrationdelay.toString());
+            document.querySelector('#eventinfo')?.appendHtml(button);
+        } else {
+            /* This will be for a 0 status, meaning that there is no capacity left in a program.
+            Again, a disabled button will be shown with that information. */
+            String? ticketsOut = globals.ticketsOut[language];
+            String button;
+            if (ticketsOut != null) {
+                button = '<button type="button" class="' + disabledButtonClass +' mb-1" disabled>*<span id="ticketsoutspan">' + ticketsOut + '</span>* ' + programInfo + '</button>';
+            } else {
+                button = '<button type="button" class="' + disabledButtonClass +' mb-1" disabled>*<span "ticketsoutspan">No Tickets Remaining</span>* ' + programInfo + '</button>';
+            }
+            document.querySelector('#eventinfo')?.appendHtml(button);
         }
     }
+    await Future.delayed(Duration(seconds: reloadDelay));
+    window.location.reload();
 }
 
 String prettyTime(String unformattedTime) {
@@ -602,6 +615,8 @@ String prettyTime(String unformattedTime) {
             int hournum = int.parse(hourstring);
             if (hournum > 12) {
                 hournum -= 12;
+                formattedTime = hournum.toString() + ":" + minutes + " p.m.";
+            } else if (hournum == 12) {
                 formattedTime = hournum.toString() + ":" + minutes + " p.m.";
             } else {
                 formattedTime = hournum.toString() + ":" + minutes + " a.m.";
@@ -617,15 +632,15 @@ String prettyTime(String unformattedTime) {
 
 //Uses event capacity and ticket count to generate a capacity status number
 int capacityCheck(int capacity, int grace, int tickets, int library) {
-    if ((capacity - tickets) > 3) {
+    if ((capacity + grace - tickets) > 4) {
         //No ticket restrictions at the moment
-        //Allow up to 2 adults and 2 children
+        //Allow up to 2 adults and 3 children
         int capStatus = library + 9;
         return capStatus;
-    } else if ((capacity + grace - tickets) >= 3) {
-        /* There are fewer than 4 spaces left, but using
-        the grace space, remaining capacity is at least 3
-        Allow getting 2 children and 1 adult tickets.
+    } else if ((capacity + grace - tickets) == 4) {
+        /* There are fewer than 5 spaces left, but using
+        the grace spaces, remaining capacity is at least 4
+        Allow getting 3 children and 1 adult tickets.
         To allow for a library value of 0 (i.e. "other")
         add 1 to the library value when turning into a capacity
         status value.  That removes ambiguity between a status of
@@ -671,10 +686,10 @@ void ticketForm(int capStatus, String eventid, String eventtime, String eventnam
 
     /* Turn on the plus and minus buttons.  They always work, but don't do anything unless the 
     conditions are right. */
-    document.querySelector('#adultadd')?.onClick.listen((MouseEvent e) => changeTickets(e, "adult", "2", capStatus));
-    document.querySelector('#adultsub')?.onClick.listen((MouseEvent e) => changeTickets(e, "adult", "1", capStatus));
-    document.querySelector('#childadd')?.onClick.listen((MouseEvent e) => changeTickets(e, "child", "2", capStatus));
-    document.querySelector('#childsub')?.onClick.listen((MouseEvent e) => changeTickets(e, "child", "1", capStatus));
+    document.querySelector('#adultadd')?.onClick.listen((MouseEvent e) => changeTickets(e, "adult", (globals.adultTicketSum + 1).toString(), capStatus));
+    document.querySelector('#adultsub')?.onClick.listen((MouseEvent e) => changeTickets(e, "adult", (globals.adultTicketSum - 1).toString(), capStatus));
+    document.querySelector('#childadd')?.onClick.listen((MouseEvent e) => changeTickets(e, "child", (globals.youthTicketSum + 1).toString(), capStatus));
+    document.querySelector('#childsub')?.onClick.listen((MouseEvent e) => changeTickets(e, "child", (globals.youthTicketSum - 1).toString(), capStatus));
 
     /* Set hidden form values.  The form isn't actually submitted in the conventional
     way, but it works as a handy place to store these variables until the button is 
@@ -755,15 +770,18 @@ void changeTickets(MouseEvent event, String audience, String quantity, int capSt
             String? currentTotal = document.querySelector('#adultticketsform')?.attributes['value'];
             if (currentTotal != null) {
                 if (currentTotal != quantity) {
-                    document.querySelector('#adultticketsform')?.attributes['value'] = quantity;
                     if (quantity == "1") {
                         document.querySelector('#adultminus')?.attributes['src'] = "images/minusoff150.png";
                         document.querySelector('#adultplus')?.attributes['src'] = "images/pluson150.png";
                         document.querySelector('#adulttotal')?.attributes['src'] = "images/one150.png";
-                    } else {
+                        document.querySelector('#adultticketsform')?.attributes['value'] = "1";
+                        globals.adultTicketSum = 1;
+                    } else if (quantity == "2") {
                         document.querySelector('#adultminus')?.attributes['src'] = "images/minuson150.png";
                         document.querySelector('#adultplus')?.attributes['src'] = "images/plusoff150.png";
                         document.querySelector('#adulttotal')?.attributes['src'] = "images/two150.png";
+                        document.querySelector('#adultticketsform')?.attributes['value'] = "2";
+                        globals.adultTicketSum = 2;
                     }
                 } //If these values match no need to do anything
             } else {
@@ -772,6 +790,7 @@ void changeTickets(MouseEvent event, String audience, String quantity, int capSt
                 document.querySelector('#adultminus')?.attributes['src'] = "images/minusoff150.png";
                 document.querySelector('#adultplus')?.attributes['src'] = "images/pluson150.png";
                 document.querySelector('#adulttotal')?.attributes['src'] = "images/two150.png";
+                globals.adultTicketSum = 1;
             }
         } //Don't do anything
     } else {
@@ -779,15 +798,26 @@ void changeTickets(MouseEvent event, String audience, String quantity, int capSt
         String? currentTotal = document.querySelector('#childticketsform')?.attributes['value'];
         if (currentTotal != null) {
             if (currentTotal != quantity) {
-                document.querySelector('#childticketsform')?.attributes['value'] = quantity;
+                //To change the number of child tickets available, add or remove 
+                //else ifs here.
                 if (quantity == "1") {
                     document.querySelector('#childminus')?.attributes['src'] = "images/minusoff150.png";
                     document.querySelector('#childplus')?.attributes['src'] = "images/pluson150.png";
                     document.querySelector('#childtotal')?.attributes['src'] = "images/one150.png";
-                } else {
+                    document.querySelector('#childticketsform')?.attributes['value'] = "1";
+                    globals.youthTicketSum = 1;
+                } else if (quantity == "2") {
+                    document.querySelector('#childminus')?.attributes['src'] = "images/minuson150.png";
+                    document.querySelector('#childplus')?.attributes['src'] = "images/pluson150.png";
+                    document.querySelector('#childtotal')?.attributes['src'] = "images/two150.png";
+                    document.querySelector('#childticketsform')?.attributes['value'] = "2";
+                    globals.youthTicketSum = 2;
+                } else if (quantity == "3") {
                     document.querySelector('#childminus')?.attributes['src'] = "images/minuson150.png";
                     document.querySelector('#childplus')?.attributes['src'] = "images/plusoff150.png";
-                    document.querySelector('#childtotal')?.attributes['src'] = "images/two150.png";
+                    document.querySelector('#childtotal')?.attributes['src'] = "images/three150.png";
+                    document.querySelector('#childticketsform')?.attributes['value'] = "3";
+                    globals.youthTicketSum = 3;
                 }
             } //If these values match no need to do anything
         } else {
@@ -796,6 +826,7 @@ void changeTickets(MouseEvent event, String audience, String quantity, int capSt
             document.querySelector('#childminus')?.attributes['src'] = "images/minusoff150.png";
             document.querySelector('#childplus')?.attributes['src'] = "images/pluson150.png";
             document.querySelector('#childtotal')?.attributes['src'] = "images/one150.png";
+            globals.youthTicketSum = 1;
         }
     }
 }
@@ -893,8 +924,11 @@ Future<void> sendTicketRequest(MouseEvent event) async {
                     document.querySelector('#dateprint')?.text = today;
                     document.querySelector('#ageprint')?.text = "1 ADULT";
                     document.querySelector('#countprint')?.text = "Ticket " + ticketCounter.toString() + " of " + allTickets.toString();
-                    document.querySelector('#codeprint')?.text = "Order #: " + code;
+                    //Was experiencing problems with occasional double tickets, so the final
+                    //printing of "x" in parentheses is for troubleshooting that
+                    document.querySelector('#codeprint')?.text = "Order #: " + code + "(" + x.toString() + ")";
                     window.print(); //Should have browser set to print.always_print_silent
+                    await Future.delayed(Duration(seconds: 1)); //To slow down printing for troubleshooting
                     ticketCounter++;
                 }
                 for (int x = 1; x <= childTickets; x++) {
@@ -904,8 +938,9 @@ Future<void> sendTicketRequest(MouseEvent event) async {
                     document.querySelector('#dateprint')?.text = today;
                     document.querySelector('#ageprint')?.text = "1 CHILD";
                     document.querySelector('#countprint')?.text = "Ticket " + ticketCounter.toString() + " of " + allTickets.toString();
-                    document.querySelector('#codeprint')?.text = "Order #: " + code;
+                    document.querySelector('#codeprint')?.text = "Order #: " + code + "(" + x.toString() + ")";
                     window.print(); //Should have browser set to print.always_print_silent
+                    await Future.delayed(Duration(seconds: 1));
                     ticketCounter++;            
                 }
                 /* With the print commands sent, display the printing message.
@@ -913,9 +948,9 @@ Future<void> sendTicketRequest(MouseEvent event) async {
                 overrides the command making sure that it says hidden for printing. */
                 globals.finishblock?.style.display = "block";
 
-                /* Wait 10 seconds for the prints to complete and the user to get out of the way
+                /* Wait 5 seconds for the prints to complete and the user to get out of the way
                 Then reload the page to restart the process. */
-                await Future.delayed(Duration(seconds: 10));
+                await Future.delayed(Duration(seconds: 5));
                 window.location.reload();         
             } else {
                 //There was some kind of error.  Show the error for diagnostics

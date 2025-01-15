@@ -21,6 +21,9 @@ Element? footertext = document.querySelector('#footer');
 
 bool oneprogramperday = true;
 
+int adultTicketSum = 1;
+int youthTicketSum = 1;
+
 int registrationdelay = 5;
 
 String language = "english";
@@ -130,12 +133,12 @@ var phoneErrorheader = {
 };
 
 var phoneErrorinfo = {
-    'english': 'Phone numbers can only be used to obtain tickets ### minutes before the start of the next program.',
-    'spanish': 'Los números de teléfono sólo se podrán utilizar para obtener entradas ### minutos antes del inicio del próximo programa.',
-    'polish': 'Podane numery telefonów można wykorzystać do zakupu biletów wyłącznie na ### minut przed rozpoczęciem kolejnego programu.',
-    'russian': 'Билеты по телефонным номерам можно приобрести только за ### минут до начала следующей программы.',
-    'chinese': '电话号码仅可在下一场演出开始前###分钟领取门票。',
-    'tradchinese': '電話號碼只能在下一個節目開始前 ### 分鐘使用。'
+    'english': 'Only tickets for in-district patrons are currently available and phone numbers cannot be validated as from within the library district.  Please check back ### minutes before the start of the program for general availability tickets.',
+    'spanish': 'Actualmente, solo hay entradas disponibles para usuarios del distrito y no se pueden validar números de teléfono si se trata de personas que pertenecen al distrito de la biblioteca. Vuelva a consultar ### minutos antes del inicio del programa para ver las entradas disponibles para todos.',
+    'polish': 'Obecnie dostępne są tylko bilety dla użytkowników z okręgu, a numery telefonów nie mogą być weryfikowane jako pochodzące z okręgu bibliotecznego. Sprawdź ponownie ### minut przed rozpoczęciem programu, aby uzyskać bilety o ogólnej dostępności.',
+    'russian': 'В настоящее время доступны только билеты для посетителей из района, а номера телефонов не могут быть проверены из библиотечного района. Пожалуйста, проверьте наличие билетов для общего пользования за ### минут до начала программы.',
+    'chinese': '目前仅提供区域内顾客的门票，无法验证电话号码是否来自图书馆区域内。请在节目开始前 ### 分钟回来查看是否有普通门票。',
+    'tradchinese': '目前僅提供區內讀者的門票，且無法驗證圖書館區內的電話號碼。 請在節目開始前 ### 分鐘回來查看常規門票。'
 };
 
 var cardOODheader = {
@@ -148,21 +151,21 @@ var cardOODheader = {
 };
 
 var cardOODinfo = {
-    'english': 'Out of district library cards can only be used to obtain tickets ### minutes before the start of the next program.',
-    'spanish': 'Las tarjetas de biblioteca de fuera del distrito solo se pueden usar para obtener boletos ### minutos antes del inicio del próximo programa.',
-    'polish': 'Karty biblioteczne spoza okręgu można wykorzystać do nabycia biletów tylko ### minut przed rozpoczęciem kolejnego seansu.',
-    'russian': 'Билеты с иногородними читательскими картами можно получить только за ### минут до начала следующей программы.',
-    'chinese': '区外借书卡只能在下一期活动开始前###分钟领取门票。',
-    'tradchinese': '區外圖書卡只能在下一個節目開始前 ### 分鐘使用。'
+    'english': 'No tickets are currently available for out-of-district users.  Check back ### minutes before the program starts.',
+    'spanish': 'Actualmente no hay entradas disponibles para usuarios de fuera del distrito. Vuelva a consultar ### minutos antes de que comience el programa.',
+    'polish': 'Obecnie nie ma dostępnych biletów dla użytkowników spoza okręgu. Sprawdź ponownie ### minut przed rozpoczęciem programu.',
+    'russian': 'Билеты для пользователей из других районов в настоящее время недоступны. Проверьте за ### минут до начала программы.',
+    'chinese': '目前没有可供区外用户购买的门票。请在节目开始前 ### 分钟回来查看。',
+    'tradchinese': '目前，外地用戶暫不提供門票。 在節目開始前 ### 分鐘回來查看。'
 };
 
 var barcodeErrorheader = {
-    'english': 'The card scanned was not a valid library card.',
-    'spanish': 'La tarjeta escaneada no es una tarjeta de biblioteca válida.',
-    'polish': 'Zeskanowana karta nie była ważną kartą biblioteczną.',
-    'russian': 'Отсканированная карта не является действительной библиотечной картой.',
-    'chinese': '扫描的卡不是有效的借书卡。',
-    'tradchinese': '掃描的卡片不是有效的借書卡。'
+    'english': 'The scanned card was not recognized as a valid library card.  It may have have just scanned incorrectly.  Check your card and try again.',
+    'spanish': 'La tarjeta escaneada no fue reconocida como una tarjeta de biblioteca válida. Es posible que se haya escaneado incorrectamente. Verifique su tarjeta e intente nuevamente.',
+    'polish': 'Zeskanowana karta nie została rozpoznana jako ważna karta biblioteczna. Mogła zostać po prostu nieprawidłowo zeskanowana. Sprawdź swoją kartę i spróbuj ponownie.',
+    'russian': 'Отсканированная карта не распознана как действительная библиотечная карта. Возможно, она просто была отсканирована неправильно. Проверьте карту и попробуйте еще раз.',
+    'chinese': '扫描的借书卡未被识别为有效的借书卡。可能扫描不正确。请检查您的借书卡并重试。',
+    'tradchinese': '掃描的卡片未被識別為有效的借書卡。 它可能只是掃描不正確。 檢查您的卡並重試。'
 };
 
 var barcodeErrorinfo = {
@@ -175,12 +178,12 @@ var barcodeErrorinfo = {
 };
 
 var selectEvent = {
-    'english': 'For which event do you want tickets?',
-    'spanish': '¿Para qué evento quieres entradas?',
-    'polish': 'Na które wydarzenie chcesz bilety?',
-    'russian': 'На какое мероприятие вам нужны билеты?',
-    'chinese': '您想要哪场活动的门票？',
-    'tradchinese': '您想要哪個活動的門票？'
+    'english': 'For which event do you want tickets (tap to choose)?',
+    'spanish': '¿Para qué evento quieres entradas (toca para elegir)?',
+    'polish': 'Na które wydarzenie chcesz bilety (dotknij, aby wybrać)?',
+    'russian': 'На какое мероприятие вам нужны билеты (нажмите, чтобы выбрать)?',
+    'chinese': '您想要哪场活动的门票 (点击选择)？',
+    'tradchinese': '您想要哪個活動的門票 (點選選擇)？'
 };
 
 var selectTickets = {
@@ -235,6 +238,15 @@ var noTicketsNowinfo = {
     'russian': 'Билеты на эту карту в настоящее время недоступны, так как приоритет отдается картам районной библиотеки. Вы можете попробовать еще раз за ### минут до начала мероприятия.',
     'chinese': '由于地区图书馆卡优先，因此目前此卡没有可用门票。您可以在活动开始前###分钟再试一次。',
     'tradchinese': '由於地區圖書館卡優先，因此該卡目前不提供門票。 您可以在活動開始前 ### 分鐘重試。'
+};
+
+var noTicketsNowButton = {
+    'english': 'Only District Cardholder Tickets Remain - Check Back ### Minutes Before Event Start',
+    'spanish': 'Solo quedan boletos para titulares de tarjetas del distrito. Vuelva a consultar ### Minutos antes del inicio del evento',
+    'polish': 'Pozostały tylko bilety posiadaczy karty okręgowej — sprawdź ponownie ### minut przed rozpoczęciem wydarzenia',
+    'russian': 'Остались только билеты для владельцев районных карт — проверьте за ### минут до начала мероприятия',
+    'chinese': '仅剩地区持卡人门票 - 活动开始前 ### 分钟再次查看',
+    'tradchinese': '僅剩地區持卡人門票 - 請在活動開始前 ### 分鐘回來查看' 
 };
 
 var limitReached = {
@@ -370,4 +382,13 @@ var finishText = {
     'russian': 'Ваши билеты печатаются. Пожалуйста, заберите их в автомате по выдаче билетов.',
     'chinese': '正在打印您的票。请从售票机领取。',
     'tradchinese': '您的門票正在列印。 請從售票機領取。'
+};
+
+var oodNotice = {
+    'english': 'If you do not see the event you want tickets for, it may be because you have an out of district card and spaces are reserved for in-district patrons.  You can try again a few minutes before the program starts.',
+    'spanish': 'Si no ves el evento para el que quieres entradas, puede ser porque tienes una tarjeta de fuera del distrito y hay plazas reservadas para los asistentes del distrito. Puedes volver a intentarlo unos minutos antes de que empiece el programa.',
+    'polish': 'Jeśli nie widzisz wydarzenia, na które chcesz kupić bilety, może to być spowodowane tym, że masz kartę spoza okręgu, a miejsca są zarezerwowane dla patronów z okręgu. Możesz spróbować ponownie kilka minut przed rozpoczęciem programu.',
+    'russian': 'Если вы не видите мероприятие, на которое хотите купить билеты, это может быть связано с тем, что у вас карта из другого района, а места зарезервированы для посетителей из этого района. Вы можете повторить попытку за несколько минут до начала программы.',
+    'chinese': '如果您没有看到想要购买门票的活动，可能是因为您持有的是区外卡，而座位是为区内观众预留的。您可以在活动开始前几分钟再试一次。',
+    'tradchinese': '如果您沒有看到想要門票的活動，可能是因為您持有區外卡，而空間是為區內顧客預留的。 您可以在程序開始前幾分鐘重試。'
 };
