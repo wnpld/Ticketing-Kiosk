@@ -3,9 +3,9 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Sep 06, 2024 at 02:59 PM
+-- Generation Time: Jan 16, 2025 at 02:31 PM
 -- Server version: 10.6.18-MariaDB-0ubuntu0.22.04.1
--- PHP Version: 8.1.2-1ubuntu2.18
+-- PHP Version: 8.1.2-1ubuntu2.19
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -60,7 +60,9 @@ CREATE TABLE `TicketedPrograms` (
   `SecondTierMinutes` tinyint(3) UNSIGNED NOT NULL DEFAULT 5,
   `LocationID` tinyint(3) UNSIGNED NOT NULL,
   `DefaultHeld` tinyint(3) UNSIGNED NOT NULL DEFAULT 0,
-  `Archived` tinyint(4) NOT NULL DEFAULT 0
+  `Archived` tinyint(4) NOT NULL DEFAULT 0,
+  `Capacity` tinyint(3) UNSIGNED NOT NULL DEFAULT 34,
+  `Grace` tinyint(3) UNSIGNED NOT NULL DEFAULT 2
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -73,7 +75,8 @@ CREATE TABLE `TicketLocations` (
   `LocationID` tinyint(3) UNSIGNED NOT NULL,
   `LocationDescription` varchar(30) NOT NULL,
   `LocationCapacity` tinyint(3) UNSIGNED NOT NULL,
-  `GraceSpaces` tinyint(3) UNSIGNED NOT NULL DEFAULT 1
+  `GraceSpaces` tinyint(3) UNSIGNED NOT NULL DEFAULT 2,
+  `DefaultHeld` tinyint(3) UNSIGNED NOT NULL DEFAULT 25
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -95,6 +98,12 @@ CREATE TABLE `Tickets` (
 --
 -- Indexes for dumped tables
 --
+
+--
+-- Indexes for table `Districts`
+--
+ALTER TABLE `Districts`
+  ADD PRIMARY KEY (`DistrictID`);
 
 --
 -- Indexes for table `TicketedEvents`

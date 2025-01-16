@@ -3,7 +3,7 @@
 ## Description
 This is a project designed to be used with a standalone kiosk running a we browser with a barcode scanner and receipt printer attached.  In our case we are using a computer running Kubuntu and Chromium with a kiosk plugin installed, although many different configurations should work.
 
-The parts here are all server-side components, so they are not installed directly on the kiosk itself.  As this is a first version (which at the time of writing we haven't actually deployed) there are some limitations of the software as written.  Notably it will not handle ticket race conditions very well, so it is strongly advised that anyone using this software in its current form not have more than one kiosk running at a time as two kiosks running simultaneously could result in too many tickets being issued.
+The parts here are all server-side components, so they are not installed directly on the kiosk itself.  This is the version of the software as first deployed in January of 2025.  It has been written to directly solve the problems we needed to address although there are definitely limitations to its capabilities.  Notably it will not handle ticket race conditions very well, so it is strongly advised that anyone using this software in its current form not have more than one kiosk running at a time as two kiosks running simultaneously could result in too many tickets being issued.
 
 The primary goal we are trying to achieve with this is the prioritization of local cardholders over non-residents, while still allowing non-residents to get tickets for events once a certain amount of time has been reached.
 
