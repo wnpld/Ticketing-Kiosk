@@ -258,6 +258,24 @@ var limitReached = {
     'tradchinese': '每日門票已達上限'
 };
 
+var currentlyLimited = {
+    'english': 'You already have tickets for a different program. If there are any tickets available ### minutes before program start you may request them then.',
+    'spanish': 'Ya tienes boletos para otro programa. Si quedan boletos disponibles ### minutos antes del inicio del programa, puedes solicitarlas en ese momento.',
+    'polish': 'Masz już bilety na inny program. Jeśli są jakieś dostępne bilety ### minut przed rozpoczęciem programu, możesz je wtedy zamówić.',
+    'russian': 'У вас уже есть билеты на другую программу. Если билеты будут доступны за ### минут до начала программы, вы можете запросить их тогда.',
+    'chinese': '您已经拥有其他节目的门票。如果节目开始前 ### 分钟还有票，您可以申请。',
+    'tradchinese': '您已經擁有其他節目的門票。如果節目開始前###分鐘還有票可用，您可以當時申請。'
+};
+
+var ticketsAlreadyTaken = {
+    'english': 'You have already received tickets for this program.',
+    'spanish': 'Ya has recibido boletos para este programa.',
+    'polish': 'Otrzymałeś już bilety na ten program.',
+    'russian': 'Вы уже получили билеты на эту программу.',
+    'chinese': '您已经收到该节目的门票。',
+    'tradchinese': '您已經收到該節目的門票。'    
+};
+
 var ticketsOut = {
     'english': 'No Tickets Remaining',
     'spanish': 'No quedan entradas',

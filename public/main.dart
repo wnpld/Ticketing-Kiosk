@@ -457,6 +457,13 @@ Future<void> checkAvailability(String bchash, var events, var ticketlist, int li
     or for an event which is full.*/
     bool anyeventmatch = true;
 
+    /*anyeventoodbuffer set to true will allow registration for any additional
+    events if the registration for the event is occurring in the free registration
+    period typically five minutes before the start of the program.  A user with tickets
+    for a different event that same day can get get tickets for another event, but only 
+    during this window.*/
+    bool anyeventoodbuffer = true;
+
     //Hitting Enter extra times can keep running this and adding elements
     //Reset the HTML before running
     document.querySelector('#eventinfo')?.setInnerHtml("");
@@ -482,7 +489,7 @@ Future<void> checkAvailability(String bchash, var events, var ticketlist, int li
 
             var windowstart = DateTime(rightnow.year, rightnow.month, rightnow.day, hour, minute);
             if (rightnow.compareTo(windowstart) < 0) {
-                //We not in the window
+                //We are not in the window
                 //Tickets are restricted
                 tickets = ticketsheld + oodtickets;
             } 
@@ -501,14 +508,32 @@ Future<void> checkAvailability(String bchash, var events, var ticketlist, int li
         has been issued tickets for the current day.  A length of 0 means that
         the identifier hasn't been issued any tickets.*/
         if (ticketlist.length > 0) {
-            if (anyeventmatch == true) {
-               capStatus = -1;
-            } else {
-                /*This for loop checks to see if a user has already registered
-                for a specific event.  It assumes that there is only one event
-                at any given time.*/
-                for (int y = 0; y < ticketlist.length; y++) {
-                    if (ticketlist[y] == events[x]['time']) {
+            /*This for loop checks to see if a user has already registered
+            for a specific event.  It assumes that there is only one event
+            at any given time.*/
+            for (int y = 0; y < ticketlist.length; y++) {
+                if (ticketlist[y] == events[x]['time']) {
+                    capStatus = -2;
+                }
+            }
+            if (capStatus != -2) {
+                //Already having tickets for an event trumps any other condition
+                if (anyeventmatch == true) {
+                    //anyeventmatch restricts someone from getting tickets to an event
+                    //if they already have tickets for a different event on the same day
+                    final rightnow = DateTime.now();
+                    final hourmin = time.split(':');
+                    int hour = int.parse(hourmin[0]);
+                    int minute = int.parse(hourmin[1]);
+                    minute -= openminutes;
+
+                    var windowstart = DateTime(rightnow.year, rightnow.month, rightnow.day, hour, minute);
+                    if ((anyeventoodbuffer == true) && (rightnow.compareTo(windowstart) >= 0)) {
+                        //anyeventoodbuffer is an override for the anyeventmatch restriction
+                        //as long as we are in the out-of-district buffer a few minutes
+                        //before the start of a program
+                        capStatus = capStatus; //Leave capStatus as is
+                    } else {
                         capStatus = -1;
                     }
                 }
@@ -566,14 +591,37 @@ Future<void> checkAvailability(String bchash, var events, var ticketlist, int li
         } else if (capStatus == -1) {
             /* A negative capacity status creates an unclickable button with program information
             as well as telling the user that their ticket limit has been reached for the day. */
-            String? limitReached = globals.limitReached[language];
-            String button;
-            if (limitReached != null) {
-                button = '<button type="button" class="' + disabledButtonClass + ' mb-1" disabled>*<span id="ticketlimitspan">' + limitReached + '</span>* ' + programInfo +'</button>';
+            if (anyeventoodbuffer == true) {
+                String? currentlyLimited = globals.currentlyLimited[language];
+                String button;
+                if (currentlyLimited != null) {
+                    button = '<button type="button" class="' + disabledButtonClass + ' mb-1" disabled>*<span id="ticketlimitspan">' + currentlyLimited + '</span>* ' + programInfo +'</button>';
+                } else {
+                    button = '<button type="button" class="' + disabledButtonClass + ' mb-1" disabled>*<span id="ticketlimitspan">You already have tickets for a different program. If there are any tickets available ### minutes before program start you may request them then.</span>* ' + programInfo +'</button>';
+                }
+                button = button.replaceAll("###", globals.registrationdelay.toString());
+                document.querySelector('#eventinfo')?.appendHtml(button);
             } else {
-                button = '<button type="button" class="' + disabledButtonClass + ' mb-1" disabled>*<span id="ticketlimitspan">Daily Ticket Limit Reached</span>* ' + programInfo +'</button>';
+                String? limitReached = globals.limitReached[language];
+                String button;
+                if (limitReached != null) {
+                    button = '<button type="button" class="' + disabledButtonClass + ' mb-1" disabled>*<span id="ticketlimitspan">' + limitReached + '</span>* ' + programInfo +'</button>';
+                } else {
+                    button = '<button type="button" class="' + disabledButtonClass + ' mb-1" disabled>*<span id="ticketlimitspan">Daily Ticket Limit Reached</span>* ' + programInfo +'</button>';
+                }
+                document.querySelector('#eventinfo')?.appendHtml(button);
             }
-            document.querySelector('#eventinfo')?.appendHtml(button);
+        } else if (capStatus == -2) {
+            /* A negative capacity status creates an unclickable button with program information
+            as well as telling the user that their ticket limit has been reached for the day. */
+            String? ticketsAlreadyTaken = globals.ticketsAlreadyTaken[language];
+            String button;
+            if (ticketsAlreadyTaken != null) {
+                button = '<button type="button" class="' + disabledButtonClass + ' mb-1" disabled>*<span id="ticketlimitspan">' + ticketsAlreadyTaken + '</span>* ' + programInfo +'</button>';
+            } else {
+                button = '<button type="button" class="' + disabledButtonClass + ' mb-1" disabled>*<span id="ticketlimitspan">You have already received tickets for this program.</span>* ' + programInfo +'</button>';
+            }
+            document.querySelector('#eventinfo')?.appendHtml(button);   
         } else if (library < 6) {
             /* It's likely that the reason that there is no capacity in this case is because
             there are only in district tickets left until the general availability window.
