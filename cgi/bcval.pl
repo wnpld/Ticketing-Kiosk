@@ -202,7 +202,7 @@ while (my @row = $sth->fetchrow_array) {
 
 $response .= "\"tickets\": [ ";
 if (scalar(@ticketlist) > 0) {
-    for (my $x = 0; $x <= scalar(@tickets); $x++) {
+    for (my $x = 0; $x <= scalar(@ticketlist); $x++) {
         if ($x > 0) {
             $response .= ", "
         }
