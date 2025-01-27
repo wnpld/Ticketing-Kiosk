@@ -133,7 +133,7 @@ if ($barcode =~ /^update$/) {
 #Before responding based on SIP response, check for other registrations
 #and program availability
 
-my $salt .= $barcode;
+$barcode .= $salt;
 my $hash = md5_hex($barcode);
 $response .= "\"id\": \"$hash\", ";
 
