@@ -3,9 +3,9 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Jan 16, 2025 at 02:31 PM
+-- Generation Time: Feb 04, 2025 at 04:24 PM
 -- Server version: 10.6.18-MariaDB-0ubuntu0.22.04.1
--- PHP Version: 8.1.2-1ubuntu2.19
+-- PHP Version: 8.1.2-1ubuntu2.20
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -62,7 +62,8 @@ CREATE TABLE `TicketedPrograms` (
   `DefaultHeld` tinyint(3) UNSIGNED NOT NULL DEFAULT 0,
   `Archived` tinyint(4) NOT NULL DEFAULT 0,
   `Capacity` tinyint(3) UNSIGNED NOT NULL DEFAULT 34,
-  `Grace` tinyint(3) UNSIGNED NOT NULL DEFAULT 2
+  `Grace` tinyint(3) UNSIGNED NOT NULL DEFAULT 2,
+  `ChildOnly` tinyint(1) NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
