@@ -1,4 +1,4 @@
-<d?php require_once('Connections/ticketingdb.php');
+<?php require_once('Connections/ticketingdb.php');
 require_once('common.php');
 
 mysqli_select_db($ticketingdb, $database_ticketingdb);
@@ -13,7 +13,7 @@ if (isset($_REQUEST['programid'])) {
 }
 
 if ($programid != "new") {
-  $query_programdata = $ticketingdb->prepare("SELECT ProgramName, ProgramTime, ProgramDays, AgeRange, SecondTierMinutes, LocationID, DefaultHeld, Capacity, Grace FROM TicketedPrograms WHERE ProgramID = ?");
+  $query_programdata = $ticketingdb->prepare("SELECT ProgramName, ProgramTime, ProgramDays, AgeRange, SecondTierMinutes, LocationID, DefaultHeld, Capacity, Grace, ChildOnly FROM TicketedPrograms WHERE ProgramID = ?");
   $query_programdata->bind_param('i',$programid);
   $query_programdata->execute() or die(mysqli_error($ticketingdb));
   $programdata = $query_programdata->get_result();
@@ -108,10 +108,10 @@ $days = explode (",", $programinfo['ProgramDays']);
       function updateCapacityGrace() {
         var rooms = {};
         <?php foreach ($locationinfo AS $id => $values) {
-          echo "rooms[$id] = {};";
-          echo "rooms[$id].capacity = " . $values['Capacity'] . ";";
-          echo "rooms[$id].grace = " . $values['Grace'] . ";";
-          echo "rooms[$id].held = " . $values['DefaultHeld'] . ";";
+          echo "rooms[" . $id . "] = {};";
+          echo "rooms[" . $id . "].capacity = " . $values['Capacity'] . ";";
+          echo "rooms[" . $id . "].grace = " . $values['Grace'] . ";";
+          echo "rooms[" . $id . "].held = " . $values['DefaultHeld'] . ";";
         } ?>
         var id = document.getElementById("LocationID").value;
         if (rooms[id].capacity != null) {
@@ -284,7 +284,15 @@ $days = explode (",", $programinfo['ProgramDays']);
           </div>
           <div class="input-group mb-3">
             <span class="input-group-text">Tickets Reserved for In District</span>
-            <input type="number" class="form-control" id="DefaultHeld" name="DefaultHeld" value="<?php echo ($programid != "new") ? $programinfo['DefaultHeld'] : $defaultheld; ?>" min=0>>
+            <input type="number" class="form-control" id="DefaultHeld" name="DefaultHeld" value="<?php echo ($programid != "new") ? $programinfo['DefaultHeld'] : $defaultheld; ?>" min=0>
+          </div>
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" name="ChildOnly" value="1" id="ChildOnly" <?php if (($programid != "new") and ($programinfo['ChildOnly'] == 1)) {
+              echo " checked";
+            } ?> >
+              <label class="form-check-label" for="ChildOnly">
+                No adult tickets issued
+              </label>
           </div>
           <input type="hidden" name="ProgramID" value="<?php echo $programid; ?>">
           <div class="input-group">

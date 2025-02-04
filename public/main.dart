@@ -477,6 +477,7 @@ Future<void> checkAvailability(String bchash, var events, var ticketlist, int li
         int ticketsheld = events[x]['ticketsheld'];
         int tickets = oodtickets + dtickets;
         int openminutes = events[x]['registrationdelay'];
+        int childonly = events[x]['childonly'];
         String time = events[x]['time'];
 
         if (library < 6) {
@@ -495,14 +496,14 @@ Future<void> checkAvailability(String bchash, var events, var ticketlist, int li
             } 
         }
 
-       /*Obtain a capacity status value from the capacityCheck function
+        /*Obtain a capacity status value from the capacityCheck function
         A capacity status of 2 means no restrictions.
         A capacity status of 1 means that the event is almost full, so only 1 adult
         ticket will be issued.
         A capacity status of 0 means that there is no remaining capacity.
         A capacity status of -1 (not obtained directly through this function) means
         that the user has hit an event maximum and can't register for additional events.*/
-        int capStatus = capacityCheck(capacity, grace, tickets, library);
+        int capStatus = capacityCheck(capacity, grace, tickets, library, childonly);
 
         /*Ticketlist contains a list of the events for which an identifier
         has been issued tickets for the current day.  A length of 0 means that
@@ -586,7 +587,7 @@ Future<void> checkAvailability(String bchash, var events, var ticketlist, int li
             String buttonid = "eventbutton" + x.toString();
             String button = '<button id="' + buttonid + '" class="' + enabledButtonClass + ' mb-1">' + programInfo + '</button>';
             document.querySelector('#eventinfo')?.appendHtml(button);
-            document.querySelector('#' + buttonid)?.onClick.listen((MouseEvent e) => chooseTickets(e, bchash, eventid, eventtime, eventname, eventlocation, eventages, eventagequal, capStatus));
+            document.querySelector('#' + buttonid)?.onClick.listen((MouseEvent e) => chooseTickets(e, bchash, eventid, eventtime, eventname, eventlocation, eventages, eventagequal, capStatus, childonly));
             reloadDelay = 90;
         } else if (capStatus == -1) {
             /* A negative capacity status creates an unclickable button with program information
@@ -679,41 +680,65 @@ String prettyTime(String unformattedTime) {
 }
 
 //Uses event capacity and ticket count to generate a capacity status number
-int capacityCheck(int capacity, int grace, int tickets, int library) {
-    if ((capacity + grace - tickets) > 4) {
-        //No ticket restrictions at the moment
-        //Allow up to 2 adults and 3 children
-        int capStatus = library + 9;
-        return capStatus;
-    } else if ((capacity + grace - tickets) == 4) {
-        /* There are fewer than 5 spaces left, but using
-        the grace spaces, remaining capacity is at least 4
-        Allow getting 3 children and 1 adult tickets.
-        To allow for a library value of 0 (i.e. "other")
-        add 1 to the library value when turning into a capacity
-        status value.  That removes ambiguity between a status of
-        0 (no tickets available) and other library. */
-        int capStatus = library + 1;
-        return capStatus;
+int capacityCheck(int capacity, int grace, int tickets, int library, int childonly) {
+    if (childonly == 0) {
+        //Rules for events with adult tickets
+        if ((capacity + grace - tickets) > 4) {
+            //No ticket restrictions at the moment
+            int capStatus = library + 9;
+            return capStatus;
+        } else if ((capacity + grace - tickets) == 4) {
+            /* There are fewer than 5 spaces left, but using
+            the grace spaces, remaining capacity is at least 4
+            Allow getting 3 children and 1 adult tickets.
+            To allow for a library value of 0 (i.e. "other")
+            add 1 to the library value when turning into a capacity
+            status value.  That removes ambiguity between a status of
+            0 (no tickets available) and other library. */
+            int capStatus = library + 1;
+            return capStatus;
+        } else {
+            //No capacity remaining for this only program.  
+            return 0;
+        }
     } else {
-        //No capacity remaining for this only program.  
-        return 0;
+        //Rules for events with only child tickets
+        //These need three levels
+        //Grace spaces are less likely to be used for these
+        //So paying attention to actual count is more important
+        if ((capacity + grace - tickets) > 2) {
+            //No ticket restrictions at the moment
+            //Allow up to 3 child tickets for one card
+            int capStatus = library + 17;
+            return capStatus;
+        } else if ((capacity + grace - tickets) == 2) {
+            // There are 2 spaces left
+            int capStatus = library + 9;
+            return capStatus;
+        } else if ((capacity + grace - tickets) == 1) {
+            // There's only one ticket left 
+            int capStatus = library + 1;
+            return capStatus;
+        } else {
+            //No capacity remaining for this only program.  
+            return 0;
+        }  
     }
 }
 
 /*chooseTickets just takes the result of a program selection button and passes that on to
-the ticketForm funtion, removing the MouseEvent and adding the multievents value.*/
-Future<void> chooseTickets(MouseEvent event, String bchash, String eventid, String eventtime, String eventname, String eventlocation, String eventages, String eventagequal, int capStatus) async {
+the ticketForm function, removing the MouseEvent and adding the multievents value.*/
+Future<void> chooseTickets(MouseEvent event, String bchash, String eventid, String eventtime, String eventname, String eventlocation, String eventages, String eventagequal, int capStatus, int childonly) async {
     if ((bchash != null) && (eventid != null) && (capStatus != null) && (eventtime != null) && (eventname != null) && (eventages != null) && (eventagequal != null)) {
         bool multievents = true;
-        ticketForm(capStatus, eventid, eventtime, eventname, eventlocation, eventages, eventagequal, bchash, multievents);
+        ticketForm(capStatus, eventid, eventtime, eventname, eventlocation, eventages, eventagequal, bchash, multievents, childonly);
     } else {
         return;
     }
 }
 
 //Presents a customized form for selecting tickets
-void ticketForm(int capStatus, String eventid, String eventtime, String eventname, String eventlocation, String eventages, String eventagequal, String bchash, bool multievents) {
+void ticketForm(int capStatus, String eventid, String eventtime, String eventname, String eventlocation, String eventages, String eventagequal, String bchash, bool multievents, int childonly) {
     String? language = globals.language;
     globals.scanblock?.style.display = "none";
     globals.seblock?.style.display = "none";
@@ -724,20 +749,39 @@ void ticketForm(int capStatus, String eventid, String eventtime, String eventnam
         language = "english";
     }
 
-    if (capStatus < 9) {
-        //Limited Registration - Adult limited to 1
-        //Just change the color of the add button and turn on the note.
-        document.querySelector('#adultplus')?.attributes['src'] = "images/plusoff150.png";
-        document.querySelector('#adultticketsnote')?.style.display = "block";
-        document.querySelector('#adultticketsnote')?.text = globals.adultTicketsNote[language];
+    if (childonly == 1) {
+        //No adult tickets
+        globals.adultblock?.style.display = "none";
+        globals.adultTicketSum = 0;
+        document.querySelector('#adultticketsform')?.attributes['value'] = "0";
+        if (capStatus < 17) {
+            //Limited Registration - Children limited to 1 or 2
+            document.querySelector('#childticketsnote')?.style.display = "block";
+            document.querySelector('#childticketsnote')?.text = globals.childTicketsNote[language];
+            document.querySelector('#childplus')?.attributes['src'] = "images/plusoff150.png";         
+        }
+    } else {
+        //This is to reset values in case someone went to a child only form and then cancelled out
+        globals.adultblock?.style.display = "block";
+        globals.adultTicketSum = 1;
+        document.querySelector('#adultticketsform')?.attributes['value'] = "1";
+        document.querySelector('#childticketsnote')?.style.display = "none";
+        document.querySelector('#childplus')?.attributes['src'] = "images/pluson150.png";          
+        if (capStatus < 9) {
+            //Limited Registration - Adult limited to 1
+            //Just change the color of the add button and turn on the note.
+            document.querySelector('#adultplus')?.attributes['src'] = "images/plusoff150.png";
+            document.querySelector('#adultticketsnote')?.style.display = "block";
+            document.querySelector('#adultticketsnote')?.text = globals.adultTicketsNote[language];
+        }
     }
 
     /* Turn on the plus and minus buttons.  They always work, but don't do anything unless the 
     conditions are right. */
-    document.querySelector('#adultadd')?.onClick.listen((MouseEvent e) => changeTickets(e, "adult", (globals.adultTicketSum + 1).toString(), capStatus));
-    document.querySelector('#adultsub')?.onClick.listen((MouseEvent e) => changeTickets(e, "adult", (globals.adultTicketSum - 1).toString(), capStatus));
-    document.querySelector('#childadd')?.onClick.listen((MouseEvent e) => changeTickets(e, "child", (globals.youthTicketSum + 1).toString(), capStatus));
-    document.querySelector('#childsub')?.onClick.listen((MouseEvent e) => changeTickets(e, "child", (globals.youthTicketSum - 1).toString(), capStatus));
+    document.querySelector('#adultadd')?.onClick.listen((MouseEvent e) => changeTickets(e, "adult", (globals.adultTicketSum + 1).toString(), capStatus, childonly));
+    document.querySelector('#adultsub')?.onClick.listen((MouseEvent e) => changeTickets(e, "adult", (globals.adultTicketSum - 1).toString(), capStatus, childonly));
+    document.querySelector('#childadd')?.onClick.listen((MouseEvent e) => changeTickets(e, "child", (globals.youthTicketSum + 1).toString(), capStatus, childonly));
+    document.querySelector('#childsub')?.onClick.listen((MouseEvent e) => changeTickets(e, "child", (globals.youthTicketSum - 1).toString(), capStatus, childonly));
 
     /* Set hidden form values.  The form isn't actually submitted in the conventional
     way, but it works as a handy place to store these variables until the button is 
@@ -748,6 +792,7 @@ void ticketForm(int capStatus, String eventid, String eventtime, String eventnam
     document.querySelector('#eventnameform')?.attributes['value'] = eventname;
     document.querySelector('#eventtimeform')?.attributes['value'] = eventtime;
     document.querySelector('#eventlocationform')?.attributes['value'] = eventlocation;
+    document.querySelector('#childonlyform')?.attributes['value'] = childonly.toString();
 
     //Turn on the form submit button
     document.querySelector('#formbutton')?.onClick.listen((MouseEvent e) => sendTicketRequest(e));
@@ -811,26 +856,26 @@ void ticketForm(int capStatus, String eventid, String eventtime, String eventnam
     }
 }
 
-void changeTickets(MouseEvent event, String audience, String quantity, int capStatus) {
+void changeTickets(MouseEvent event, String audience, String quantity, int capStatus, int childonly) {
     if (audience == "adult") {
         if (capStatus > 8) {
             //Don't do anything if the capStatus is in the first tier
             String? currentTotal = document.querySelector('#adultticketsform')?.attributes['value'];
             if (currentTotal != null) {
-                if (currentTotal != quantity) {
-                    if (quantity == "1") {
-                        document.querySelector('#adultminus')?.attributes['src'] = "images/minusoff150.png";
-                        document.querySelector('#adultplus')?.attributes['src'] = "images/pluson150.png";
-                        document.querySelector('#adulttotal')?.attributes['src'] = "images/one150.png";
-                        document.querySelector('#adultticketsform')?.attributes['value'] = "1";
-                        globals.adultTicketSum = 1;
-                    } else if (quantity == "2") {
-                        document.querySelector('#adultminus')?.attributes['src'] = "images/minuson150.png";
-                        document.querySelector('#adultplus')?.attributes['src'] = "images/plusoff150.png";
-                        document.querySelector('#adulttotal')?.attributes['src'] = "images/two150.png";
-                        document.querySelector('#adultticketsform')?.attributes['value'] = "2";
-                        globals.adultTicketSum = 2;
-                    }
+                    if (currentTotal != quantity) {
+                        if (quantity == "1") {
+                            document.querySelector('#adultminus')?.attributes['src'] = "images/minusoff150.png";
+                            document.querySelector('#adultplus')?.attributes['src'] = "images/pluson150.png";
+                            document.querySelector('#adulttotal')?.attributes['src'] = "images/one150.png";
+                            document.querySelector('#adultticketsform')?.attributes['value'] = "1";
+                            globals.adultTicketSum = 1;
+                        } else if (quantity == "2") {
+                            document.querySelector('#adultminus')?.attributes['src'] = "images/minuson150.png";
+                            document.querySelector('#adultplus')?.attributes['src'] = "images/plusoff150.png";
+                            document.querySelector('#adulttotal')?.attributes['src'] = "images/two150.png";
+                            document.querySelector('#adultticketsform')?.attributes['value'] = "2";
+                            globals.adultTicketSum = 2;
+                        }
                 } //If these values match no need to do anything
             } else {
                 //This shouldn't happen, but just set everything to 1
@@ -842,44 +887,106 @@ void changeTickets(MouseEvent event, String audience, String quantity, int capSt
             }
         } //Don't do anything
     } else {
-        //Audience has to be child.  CapStatus really never should come into play here
-        String? currentTotal = document.querySelector('#childticketsform')?.attributes['value'];
-        if (currentTotal != null) {
-            if (currentTotal != quantity) {
-                //To change the number of child tickets available, add or remove 
-                //else ifs here.
-                if (quantity == "1") {
+        //Audience has to be child.  
+        //CapStatus is relevant only if it's a child only event
+        //In this case, tickets are limited to 2
+        if (childonly == 1) {
+            if (capStatus > 8) {
+                String? currentTotal = document.querySelector('#childticketsform')?.attributes['value'];
+                if (currentTotal != null) {
+                    if (capStatus > 16) {
+                        if (currentTotal != quantity) {
+                            //To change the number of child tickets available, add or remove 
+                            //else ifs here.
+                            if (quantity == "1") {
+                                document.querySelector('#childminus')?.attributes['src'] = "images/minusoff150.png";
+                                document.querySelector('#childplus')?.attributes['src'] = "images/pluson150.png";
+                                document.querySelector('#childtotal')?.attributes['src'] = "images/one150.png";
+                                document.querySelector('#childticketsform')?.attributes['value'] = "1";
+                                globals.youthTicketSum = 1;
+                            } else if (quantity == "2") {
+                                document.querySelector('#childminus')?.attributes['src'] = "images/minuson150.png";
+                                document.querySelector('#childplus')?.attributes['src'] = "images/pluson150.png";
+                                document.querySelector('#childtotal')?.attributes['src'] = "images/two150.png";
+                                document.querySelector('#childticketsform')?.attributes['value'] = "2";
+                                globals.youthTicketSum = 2;
+                            } else if (quantity == "3") {
+                                document.querySelector('#childminus')?.attributes['src'] = "images/minuson150.png";
+                                document.querySelector('#childplus')?.attributes['src'] = "images/plusoff150.png";
+                                document.querySelector('#childtotal')?.attributes['src'] = "images/three150.png";
+                                document.querySelector('#childticketsform')?.attributes['value'] = "3";
+                                globals.youthTicketSum = 3;
+                            }
+                        } //If these values match no need to do anything
+                    } else {
+                        if (currentTotal != quantity) {
+                            //Down to two tickets
+                            if (quantity == "1") {
+                                document.querySelector('#childminus')?.attributes['src'] = "images/minusoff150.png";
+                                document.querySelector('#childplus')?.attributes['src'] = "images/pluson150.png";
+                                document.querySelector('#childtotal')?.attributes['src'] = "images/one150.png";
+                                document.querySelector('#childticketsform')?.attributes['value'] = "1";
+                                globals.youthTicketSum = 1;
+                             } else if (quantity == "2") {
+                                document.querySelector('#childminus')?.attributes['src'] = "images/minuson150.png";
+                                document.querySelector('#childplus')?.attributes['src'] = "images/plusoff150.png";
+                                document.querySelector('#childtotal')?.attributes['src'] = "images/two150.png";
+                                document.querySelector('#childticketsform')?.attributes['value'] = "2";
+                                globals.youthTicketSum = 2;
+                            }     
+                        }
+                    }
+                } else {
+                    //Shouldn't happen, but set to 1 just in case
                     document.querySelector('#childminus')?.attributes['src'] = "images/minusoff150.png";
                     document.querySelector('#childplus')?.attributes['src'] = "images/pluson150.png";
                     document.querySelector('#childtotal')?.attributes['src'] = "images/one150.png";
                     document.querySelector('#childticketsform')?.attributes['value'] = "1";
                     globals.youthTicketSum = 1;
-                } else if (quantity == "2") {
-                    document.querySelector('#childminus')?.attributes['src'] = "images/minuson150.png";
-                    document.querySelector('#childplus')?.attributes['src'] = "images/pluson150.png";
-                    document.querySelector('#childtotal')?.attributes['src'] = "images/two150.png";
-                    document.querySelector('#childticketsform')?.attributes['value'] = "2";
-                    globals.youthTicketSum = 2;
-                } else if (quantity == "3") {
-                    document.querySelector('#childminus')?.attributes['src'] = "images/minuson150.png";
-                    document.querySelector('#childplus')?.attributes['src'] = "images/plusoff150.png";
-                    document.querySelector('#childtotal')?.attributes['src'] = "images/three150.png";
-                    document.querySelector('#childticketsform')?.attributes['value'] = "3";
-                    globals.youthTicketSum = 3;
                 }
-            } //If these values match no need to do anything
+            } else {
+                document.querySelector('#childplus')?.attributes['src'] = "images/plusoff150.png";
+            } //Shut off the plus button
         } else {
-            //Shouldn't happen, but set to 1 just in case
-            document.querySelector('#childticketsform')?.attributes['value'] = "1";
-            document.querySelector('#childminus')?.attributes['src'] = "images/minusoff150.png";
-            document.querySelector('#childplus')?.attributes['src'] = "images/pluson150.png";
-            document.querySelector('#childtotal')?.attributes['src'] = "images/one150.png";
-            globals.youthTicketSum = 1;
+            //Normal rules for multiple children
+            String? currentTotal = document.querySelector('#childticketsform')?.attributes['value'];
+            if (currentTotal != null) {
+                if (currentTotal != quantity) {
+                    //To change the number of child tickets available, add or remove 
+                    //else ifs here.
+                    if (quantity == "1") {
+                        document.querySelector('#childminus')?.attributes['src'] = "images/minusoff150.png";
+                        document.querySelector('#childplus')?.attributes['src'] = "images/pluson150.png";
+                        document.querySelector('#childtotal')?.attributes['src'] = "images/one150.png";
+                        document.querySelector('#childticketsform')?.attributes['value'] = "1";
+                        globals.youthTicketSum = 1;
+                    } else if (quantity == "2") {
+                        document.querySelector('#childminus')?.attributes['src'] = "images/minuson150.png";
+                        document.querySelector('#childplus')?.attributes['src'] = "images/pluson150.png";
+                        document.querySelector('#childtotal')?.attributes['src'] = "images/two150.png";
+                        document.querySelector('#childticketsform')?.attributes['value'] = "2";
+                        globals.youthTicketSum = 2;
+                    } else if (quantity == "3") {
+                        document.querySelector('#childminus')?.attributes['src'] = "images/minuson150.png";
+                        document.querySelector('#childplus')?.attributes['src'] = "images/plusoff150.png";
+                        document.querySelector('#childtotal')?.attributes['src'] = "images/three150.png";
+                        document.querySelector('#childticketsform')?.attributes['value'] = "3";
+                        globals.youthTicketSum = 3;
+                    }
+                } //If these values match no need to do anything
+            } else {
+                //Shouldn't happen, but set to 1 just in case
+                document.querySelector('#childticketsform')?.attributes['value'] = "1";
+                document.querySelector('#childminus')?.attributes['src'] = "images/minusoff150.png";
+                document.querySelector('#childplus')?.attributes['src'] = "images/pluson150.png";
+                document.querySelector('#childtotal')?.attributes['src'] = "images/one150.png";
+                globals.youthTicketSum = 1;
+            }
         }
     }
 }
 
-//Turns of the ticket selection screen and turns on the event selection screen
+//Turns off the ticket selection screen and turns on the event selection screen
 void backToEvents(MouseEvent event) {
     globals.stblock?.style.display = "none";
     globals.seblock?.style.display = "block";
@@ -896,11 +1003,12 @@ Future<void> sendTicketRequest(MouseEvent event) async {
     String? eventName = document.querySelector('#eventnameform')?.attributes['value'];
     String? eventTime = document.querySelector('#eventtimeform')?.attributes['value'];
     String? eventLocation = document.querySelector('#eventlocationform')?.attributes['value'];
+    String? childonly = document.querySelector('#childonlyform')?.attributes['value'];
     String? language = globals.language;
 
     if ((adultTicketTotal != null) && (childTicketTotal != null) && (identifier != null) && (capStatus != null) && (eventid != null) && (language != null)) {
         var url = Uri.http(globals.serverurl, globals.orderscript);
-        var jsonresponse = await http.post(url, headers: {'Access-Control-Allow-Origin': '*'}, body: {'adult': adultTicketTotal, 'child': childTicketTotal, 'identifier': identifier, 'library': capStatus, 'event': eventid, 'language': language});
+        var jsonresponse = await http.post(url, headers: {'Access-Control-Allow-Origin': '*'}, body: {'adult': adultTicketTotal, 'child': childTicketTotal, 'identifier': identifier, 'library': capStatus, 'event': eventid, 'language': language, 'childonly': childonly});
         String rawjson = jsonresponse.body;
         try {
             var response = jsonDecode(rawjson);
@@ -965,19 +1073,19 @@ Future<void> sendTicketRequest(MouseEvent event) async {
 
                 int ticketCounter = 1;
                 int allTickets = adultTickets + childTickets;
-                for (int x = 1; x <= adultTickets; x++) {
-                    document.querySelector('#eventprint')?.text = eventName;
-                    document.querySelector('#timeprint')?.text = eventTime;
-                    document.querySelector('#roomprint')?.text = eventLocation;
-                    document.querySelector('#dateprint')?.text = today;
-                    document.querySelector('#ageprint')?.text = "1 ADULT";
-                    document.querySelector('#countprint')?.text = "Ticket " + ticketCounter.toString() + " of " + allTickets.toString();
-                    //Was experiencing problems with occasional double tickets, so the final
-                    //printing of "x" in parentheses is for troubleshooting that
-                    document.querySelector('#codeprint')?.text = "Order #: " + code + "(" + x.toString() + ")";
-                    window.print(); //Should have browser set to print.always_print_silent
-                    await Future.delayed(Duration(seconds: 1)); //To slow down printing for troubleshooting
-                    ticketCounter++;
+                if (adultTickets > 0) {
+                    for (int x = 1; x <= adultTickets; x++) {
+                        document.querySelector('#eventprint')?.text = eventName;
+                        document.querySelector('#timeprint')?.text = eventTime;
+                        document.querySelector('#roomprint')?.text = eventLocation;
+                        document.querySelector('#dateprint')?.text = today;
+                        document.querySelector('#ageprint')?.text = "1 ADULT";
+                        document.querySelector('#countprint')?.text = "Ticket " + ticketCounter.toString() + " of  " + allTickets.toString();
+                        document.querySelector('#codeprint')?.text = "Order #: " + code + "(" + x.toString() + ")";
+                        window.print(); //Should have browser set to print.always_print_silent
+                        await Future.delayed(Duration(seconds: 1));
+                        ticketCounter++;
+                    }
                 }
                 for (int x = 1; x <= childTickets; x++) {
                     document.querySelector('#eventprint')?.text = eventName;

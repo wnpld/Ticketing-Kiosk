@@ -5,7 +5,7 @@ if (isset($_REQUEST['eventid'])) {
         $eventid = $_REQUEST['eventid'];
         mysqli_select_db($ticketingdb, $database_ticketingdb);
         $formatted_today = date('Y-m-d');
-        $query_eventdetails = sprintf("SELECT tp.ProgramName, tp.ProgramTime, (IFNULL(SUM(t.Adults),0) + IFNULL(SUM(t.Children),0)) AS TicketsIssued, tl.LocationDescription, tl.LocationCapacity, tl.GraceSpaces, te.TicketsHeld, (SELECT IFNULL((SUM(IFNULL(Adults,0)) + SUM(IFNULL(Children,0))),0) FROM Tickets WHERE (DistrictResidentID = 6 OR DistrictResidentID = 7) AND EventID = '$eventid') AS DistrictTickets FROM TicketedPrograms tp INNER JOIN TicketedEvents te ON tp.ProgramID = te.ProgramID LEFT JOIN Tickets t ON te.EventID = t.EventID INNER JOIN TicketLocations tl ON tp.LocationID = tl.LocationID WHERE te.EventDate = '$formatted_today' AND te.EventID = '$eventid'");
+        $query_eventdetails = sprintf("SELECT tp.ProgramName, tp.ProgramTime, (IFNULL(SUM(t.Adults),0) + IFNULL(SUM(t.Children),0)) AS TicketsIssued, tl.LocationDescription, tp.Capacity, tp.Grace AS GraceSpaces, te.TicketsHeld, (SELECT IFNULL((SUM(IFNULL(Adults,0)) + SUM(IFNULL(Children,0))),0) FROM Tickets WHERE (DistrictResidentID = 6 OR DistrictResidentID = 7) AND EventID = '$eventid') AS DistrictTickets FROM TicketedPrograms tp INNER JOIN TicketedEvents te ON tp.ProgramID = te.ProgramID LEFT JOIN Tickets t ON te.EventID = t.EventID INNER JOIN TicketLocations tl ON tp.LocationID = tl.LocationID WHERE te.EventDate = '$formatted_today' AND te.EventID = '$eventid'");
         $eventdetails = mysqli_query($ticketingdb, $query_eventdetails) or die(mysqli_error($ticketingdb));
         $totalRows_eventdetails = mysqli_num_rows($eventdetails);
         if ($totalRows_eventdetails == 1) {
@@ -92,8 +92,8 @@ if (isset($_REQUEST['eventid'])) {
 				?>
 				<p><strong>Tickets Issued:</strong> <?php echo $eventinfo['TicketsIssued']; ?></p>
 				<p><strong>Priority Tickets Remaining:</strong> <?php echo $district_remaining; ?></p>
- 				<p><strong>General Tickets Remaining:</strong> <?php echo ($eventinfo['LocationCapacity'] - ($eventinfo['TicketsIssued'] + $district_remaining)); ?></p>
- 				<p><strong>Total Tickets Remaining:</strong> <?php echo ($eventinfo['LocationCapacity'] - $eventinfo['TicketsIssued']); ?> (Grace Tickets: <?php echo $eventinfo['GraceSpaces']; ?>)</p>
+				<p><strong>General Tickets Remaining:</strong> <?php echo ($eventinfo['Capacity'] - ($eventinfo['TicketsIssued'] + $district_remaining)); ?></p>
+  				<p><strong>Total Tickets Remaining:</strong> <?php echo ($eventinfo['Capacity'] - $eventinfo['TicketsIssued']); ?> (Grace Tickets: <?php echo $eventinfo['GraceSpaces']; ?>)</p>
 			</div>
 			<div class="col-2 mx-auto">
 <?php
@@ -143,10 +143,16 @@ if (isset($_REQUEST['eventid'])) {
 						$id = "Staff " . $matches[1];
 					}
 				?>
-				<tr id="<?php echo $ticketinfo['Identifier']; ?>"><td><?php echo $ticketinfo['Adults']; ?></td><td><?php echo $ticketinfo['Children']; ?></td><td><?php echo $id; ?> (<?php echo $ticketinfo['Library']; ?>)</td><td>
- 					<button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#cancelModal" data-bs-ticketinfo="<?php echo $ticketinfo['Adults']; ?>,<?php echo $ticketinfo['Children']; ?>,<?php echo $ticketinfo['TicketID']; ?>,<?php echo $eventid; ?>">Cancel Tickets</button>
- 					<a href="issuetickets.php?ticketid=<?php echo $ticketinfo['TicketID']; ?>" class="btn btn-primary btn-sm">Add Tickets</a>
- 					<a href="printtickets.php?ticketid=<?php echo $ticketinfo['TicketID']; ?>&reprint=true" target="_blank" class="btn btn-primary btn-sm">Reprint</a></td></tr>
+				<tr id="<?php echo $ticketinfo['Identifier']; ?>">
+					<td><?php echo $ticketinfo['Adults']; ?></td>
+					<td><?php echo $ticketinfo['Children']; ?></td>
+					<td><?php echo $id; ?> (<?php echo $ticketinfo['Library']; ?>)</td>
+					<td>
+						<button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#cancelModal" data-bs-ticketinfo="<?php echo $ticketinfo['Adults']; ?>,<?php echo $ticketinfo['Children']; ?>,<?php echo $ticketinfo['TicketID']; ?>,<?php echo $eventid; ?>">Cancel Tickets</button>
+						<a href="issuetickets.php?ticketid=<?php echo $ticketinfo['TicketID']; ?>" class="btn btn-primary btn-sm">Add Tickets</a>
+						<a href="printtickets.php?ticketid=<?php echo $ticketinfo['TicketID']; ?>&reprint=true" target="_blank" class="btn btn-primary btn-sm">Reprint</a>
+					</td>
+				</tr>
 	      	<?php }
 
 	      	?>

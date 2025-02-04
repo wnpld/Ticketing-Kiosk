@@ -18,6 +18,7 @@ Element? barcodespan = document.querySelector('#enteredbarcode');
 Element? errorheader = document.querySelector('#errorheader');
 Element? errorinfo = document.querySelector('#errorinfo');
 Element? footertext = document.querySelector('#footer');
+Element? adultblock = document.querySelector('#adulttickets');
 
 bool oneprogramperday = true;
 
@@ -328,6 +329,15 @@ var adultTicketsNote = {
     'russian': 'В настоящее время количество билетов для взрослых ограничено одним, поскольку на мероприятие почти нет мест.',
     'chinese': '由于本次活动已基本满员，目前成人票仅限一张。',
     'tradchinese': '成人票目前僅限一張，因為活動幾乎已滿。'
+};
+
+var childTicketsNote = {
+    'english': 'Tickets are currently limited because this event is almost full.',
+    'spanish': 'Las entradas actualmente son limitadas porque este evento está casi lleno.',
+    'polish': 'Liczba biletów jest obecnie ograniczona, ponieważ wydarzenie jest prawie pełne.',
+    'russian': 'В настоящее время количество билетов ограничено, поскольку на это мероприятие почти нет свободных мест.',
+    'chinese': '由于本次活动已几乎满座，因此目前门票数量有限。',
+    'tradchinese': '由於本次活動已幾乎滿座，因此目前門票數量有限。'
 };
 
 var childNoteI = {

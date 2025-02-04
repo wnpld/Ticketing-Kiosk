@@ -2,7 +2,7 @@
 require_once('common.php');
 mysqli_select_db($ticketingdb, $database_ticketingdb);
 $formatted_today = date('Y-m-d');
-$query_todaysevents = sprintf("SELECT ProgramName, ProgramTime, SUM(TicketsIssued) AS TicketsIssued, LocationDescription, LocationCapacity, GraceSpaces, EventID, TicketsHeld, SUM(DistrictTickets) AS DistrictTickets FROM ((SELECT tp.ProgramName, tp.ProgramTime, (IFNULL(SUM(t.Adults),0) + IFNULL(SUM(t.Children),0)) AS TicketsIssued, tl.LocationDescription, tl.LocationCapacity, tl.GraceSpaces, te.EventID, te.TicketsHeld, 0 AS DistrictTickets FROM TicketedPrograms tp INNER JOIN TicketedEvents te ON tp.ProgramID = te.ProgramID LEFT JOIN Tickets t ON te.EventID = t.EventID INNER JOIN TicketLocations tl ON tp.LocationID = tl.LocationID WHERE te.EventDate = '$formatted_today' GROUP BY tp.ProgramTime) UNION ALL (SELECT tp.ProgramName, tp.ProgramTime, 0 AS TicketsIssued, tl.LocationDescription, tl.LocationCapacity, tl.GraceSpaces, te.EventID, te.TicketsHeld, (IFNULL(SUM(t.Adults),0) + IFNULL(SUM(t.Children),0)) AS DistrictTickets FROM TicketedPrograms tp INNER JOIN TicketedEvents te ON tp.ProgramID = te.ProgramID LEFT JOIN Tickets t ON te.EventID = t.EventID INNER JOIN TicketLocations tl ON tp.LocationID = tl.LocationID WHERE te.EventDate = '$formatted_today' AND t.DistrictResidentID >= 6 GROUP BY tp.ProgramTime)) tb GROUP BY ProgramName, ProgramTime, LocationDescription, LocationCapacity, GraceSpaces, EventID, TicketsHeld ORDER BY ProgramTime ASC");
+$query_todaysevents = sprintf("SELECT ProgramName, ProgramTime, SUM(TicketsIssued) AS TicketsIssued, LocationDescription, Capacity, GraceSpaces, EventID, TicketsHeld, SUM(DistrictTickets) AS DistrictTickets FROM ((SELECT tp.ProgramName, tp.ProgramTime, (IFNULL(SUM(t.Adults),0) + IFNULL(SUM(t.Children),0)) AS TicketsIssued, tl.LocationDescription, tp.Capacity, tp.Grace AS GraceSpaces, te.EventID, te.TicketsHeld, 0 AS DistrictTickets FROM TicketedPrograms tp INNER JOIN TicketedEvents te ON tp.ProgramID = te.ProgramID LEFT JOIN Tickets t ON te.EventID = t.EventID INNER JOIN TicketLocations tl ON tp.LocationID = tl.LocationID WHERE te.EventDate = '$formatted_today' GROUP BY tp.ProgramTime) UNION ALL (SELECT tp.ProgramName, tp.ProgramTime, 0 AS TicketsIssued, tl.LocationDescription, tp.Capacity, tp.Grace AS GraceSpaces, te.EventID, te.TicketsHeld, (IFNULL(SUM(t.Adults),0) + IFNULL(SUM(t.Children),0)) AS DistrictTickets FROM TicketedPrograms tp INNER JOIN TicketedEvents te ON tp.ProgramID = te.ProgramID LEFT JOIN Tickets t ON te.EventID = t.EventID INNER JOIN TicketLocations tl ON tp.LocationID = tl.LocationID WHERE te.EventDate = '$formatted_today' AND t.DistrictResidentID >= 6 GROUP BY tp.ProgramTime)) tb GROUP BY ProgramName, ProgramTime, LocationDescription, Capacity, GraceSpaces, EventID, TicketsHeld ORDER BY ProgramTime ASC");
 $todaysevents = mysqli_query($ticketingdb, $query_todaysevents) or die(mysqli_error($ticketingdb));
 $totalRows_todaysevents = mysqli_num_rows($todaysevents);
 ?>
@@ -53,7 +53,7 @@ $totalRows_todaysevents = mysqli_num_rows($todaysevents);
 							<p>For any events which are upcoming or ongoing, you can click on the event to get ticket information make changes.</p>
 		<?php
 			while ($event = mysqli_fetch_assoc($todaysevents)) { 
-				$capacity = $event['LocationCapacity'];
+				$capacity = $event['Capacity'];
 		   		$grace = $event['GraceSpaces'];
 		   		$tickets = $event['TicketsIssued'];
 		   		$held = $event['TicketsHeld'] - $event['DistrictTickets'];

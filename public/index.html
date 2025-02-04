@@ -104,7 +104,8 @@
                         </div>
                         <div id="childtickets">
                             <h1 id="childticketsheader">Child Tickets</h1>
-                            <div class="alert alert-primary pb-3" id="childticketsnote"><span id="cnotei">Note: all children for this event must between </span><span id="cnoteages">0-5</span><span id="cnoteagequal"> years</span><span id="cnoteii"> old.</span></div>
+                            <div class="alert alert-danger pb-3" id="childticketsnote" style="display: none;"></div>
+                            <div class="alert alert-primary pb-3" id="childagenote"><span id="cnotei">Note: all children for this event must between </span><span id="cnoteages">0-5</span><span id="cnoteagequal"> years</span><span id="cnoteii"> old.</span></div>
                             <div class="btn-group pb-3">
                                 <button id="childsub"><img id="childminus" src="images/minusoff150.png"></button>
                                 <img id="childtotal" src="images/one150.png">
@@ -112,6 +113,7 @@
                             </div>
                         </div>
                         <div id="ticketform">
+                            <input type="hidden" name="childonly" id="childonlyform" value="0">
                             <input type="hidden" name="adulttickets" id="adultticketsform" value="1">
                             <input type="hidden" name="childtickets" id="childticketsform" value="1">
                             <input type="hidden" name="eventid" id="eventidform" value="">

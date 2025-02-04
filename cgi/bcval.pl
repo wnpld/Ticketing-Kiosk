@@ -98,30 +98,35 @@ if ($barcode =~ /^update$/) {
     }
 
 #IMPORTANT -- This needs to be customized based on your situation
-    if ($status =~ /Patron status is ok/) {
-        if ($code eq "WNK") {
-            $response .= "\"valid\": 1, \"library\": 7, \"status\": \"ok\", ";
-            $indistrict = 1;
-        } elsif ($code eq "WBK") {
-            $response .= "\"valid\": 1, \"library\": 6, \"status\": \"ok\", ";
-            $indistrict = 1;
-        } elsif ($code eq "WLK") {
-            $response .= "\"valid\": 1, \"library\": 5, \"status\": \"ok\", ";
-        } elsif ($code eq "NBK") {
-            $response .= "\"valid\": 1, \"library\": 4, \"status\": \"ok\", ";
-        } elsif ($code eq "GVK") {
-            $response .= "\"valid\": 1, \"library\": 3, \"status\": \"ok\", ";
-        } elsif ($code eq "GCK") {
-            $response .= "\"valid\": 1, \"library\": 2, \"status\": \"ok\", ";
-        } elsif ($code eq "EVK") {
-            $response .= "\"valid\": 1, \"library\": 1, \"status\": \"ok\", ";
-        } else {
-            $response .= "\"valid\": 1, \"library\": 0, \"status\": \"ok\", ";
-        }
-    } elsif ($status =~ /Patron does not exist/) {
+    my $libcode = 0;
+    if ($code eq "WNK") {
+    	$libcode = 7;
+    } elsif ($code eq "WBK") {
+    	$libcode = 6;
+    } elsif ($code eq "WLK") {
+    	$libcode = 5;
+    } elsif ($code eq "NBK") {
+    	$libcode = 4;
+    } elsif ($code eq "GVK") {
+    	$libcode = 3;
+    } elsif ($code eq "GCK") {
+    	$libcode = 2;
+    } elsif ($code eq "EVK") {
+    	$libcode = 1;
+    }
+    
+    if (($status =~ /Patron status is ok/) || ($status =~ /Patron has blocks/) || ($status =~ /Patron has notes/) || ($status =~ /Patron has too many items out/) || ($status =~ /Patron has too many items on hold/) || ($status =~ /Patron has too many reserve items out/)) {
+		if ($libcode >= 6) {
+			$indistrict = 1;
+		}
+		$response .= "\"valid\": 1, \"library\": $libcode, \"status\": \"ok\", ";
+    } elsif (($status =~ /Patron does not exist/) || ($status =~ /Internal error occurred/)) {
         $response .= "\"valid\": 0, \"library\": 0, \"status\": \"invalid\", ";
     } else {
-        $response .= "\"valid\": 1, \"library\": 0, \"status\": \"$status\", ";
+        if ($libcode >= 6) {
+    		$indistrict = 1;
+    	}
+        $response .= "\"valid\": 1, \"library\": $libcode, \"status\": \"$status\", ";
     }
     if ($fine > 10) {
         $response .= "\"fine\": $fine, ";
@@ -144,7 +149,7 @@ my $time = strftime '%R', localtime;
 my $sth;
 
 #This ugly SQL query gets a list of events and their ticket quantities.
-$sth = $dbh->prepare('SELECT ProgramName, ProgramTime, RegistrationDelay, LocationDescription, AgeRange, LocationCapacity, GraceSpaces, TicketsHeld, EventID, SUM(OoDTickets) AS OoDTickets, SUM(DTickets) AS DTickets FROM ((SELECT p.ProgramName, p.ProgramTime, p.SecondTierMinutes As RegistrationDelay, l.LocationDescription, p.AgeRange, p.Capacity AS LocationCapacity, p.Grace as GraceSpaces, e.TicketsHeld, e.EventID, 0 AS OoDTickets, 0 AS DTickets FROM TicketedPrograms p INNER JOIN TicketedEvents e ON p.ProgramID = e.ProgramID INNER JOIN TicketLocations l ON p.LocationID = l.LocationID WHERE e.EventDate = ? AND ? BETWEEN DATE_SUB(p.ProgramTime, INTERVAL ' . $beforeminutes . ' MINUTE) AND DATE_ADD(p.ProgramTime, INTERVAL ' . $bufferminutes . ' MINUTE)) UNION ALL (SELECT p.ProgramName, p.ProgramTime, p.SecondTierMinutes As RegistrationDelay, l.LocationDescription, p.AgeRange, p.Capacity AS LocationCapacity, p.Grace as GraceSpaces, e.TicketsHeld, e.EventID, (IFNULL(t.Adults,0) + IFNULL(t.Children,0)) AS OoDTickets, 0 AS DTickets FROM TicketedPrograms p INNER JOIN TicketedEvents e ON p.ProgramID = e.ProgramID INNER JOIN TicketLocations l ON p.LocationID = l.LocationID INNER JOIN Tickets t ON e.EventID = t.EventID WHERE e.EventDate = ? AND ? BETWEEN DATE_SUB(p.ProgramTime, INTERVAL ' . $beforeminutes . ' MINUTE) AND DATE_ADD(p.ProgramTime, INTERVAL ' . $bufferminutes . ' MINUTE) AND t.DistrictResidentID < 6)  UNION ALL  (SELECT p.ProgramName, p.ProgramTime, p.SecondTierMinutes As RegistrationDelay, l.LocationDescription, p.AgeRange, p.Capacity AS LocationCapacity, p.Grace as GraceSpaces, e.TicketsHeld, e.EventID, 0 AS OoDTickets, (IFNULL(t.Adults,0) + IFNULL(t.Children,0)) AS DTickets FROM TicketedPrograms p INNER JOIN TicketedEvents e ON p.ProgramID = e.ProgramID INNER JOIN TicketLocations l ON p.LocationID = l.LocationID INNER JOIN Tickets t ON e.EventID = t.EventID WHERE e.EventDate = ? AND ? BETWEEN DATE_SUB(p.ProgramTime, INTERVAL ' . $beforeminutes . ' MINUTE) AND DATE_ADD(p.ProgramTime, INTERVAL ' . $bufferminutes . ' MINUTE) AND t.DistrictResidentID > 5)) t GROUP BY EventID ORDER BY ProgramTime ASC;') or die &return_error("Could not prepare out of district query", $DBI::errstr);
+$sth = $dbh->prepare('SELECT ProgramName, ProgramTime, RegistrationDelay, LocationDescription, AgeRange, LocationCapacity, GraceSpaces, TicketsHeld, ChildOnly, EventID, SUM(OoDTickets) AS OoDTickets, SUM(DTickets) AS DTickets FROM ((SELECT p.ProgramName, p.ProgramTime, p.SecondTierMinutes As RegistrationDelay, l.LocationDescription, p.AgeRange, p.Capacity AS LocationCapacity, p.Grace as GraceSpaces, e.TicketsHeld, p.ChildOnly AS ChildOnly, e.EventID, 0 AS OoDTickets, 0 AS DTickets FROM TicketedPrograms p INNER JOIN TicketedEvents e ON p.ProgramID = e.ProgramID INNER JOIN TicketLocations l ON p.LocationID = l.LocationID WHERE e.EventDate = ? AND ? BETWEEN DATE_SUB(p.ProgramTime, INTERVAL ' . $beforeminutes . ' MINUTE) AND DATE_ADD(p.ProgramTime, INTERVAL ' . $bufferminutes . ' MINUTE)) UNION ALL (SELECT p.ProgramName, p.ProgramTime, p.SecondTierMinutes As RegistrationDelay, l.LocationDescription, p.AgeRange, p.Capacity AS LocationCapacity, p.Grace as GraceSpaces, e.TicketsHeld, p.ChildOnly AS ChildOnly, e.EventID, (IFNULL(t.Adults,0) + IFNULL(t.Children,0)) AS OoDTickets, 0 AS DTickets FROM TicketedPrograms p INNER JOIN TicketedEvents e ON p.ProgramID = e.ProgramID INNER JOIN TicketLocations l ON p.LocationID = l.LocationID INNER JOIN Tickets t ON e.EventID = t.EventID WHERE e.EventDate = ? AND ? BETWEEN DATE_SUB(p.ProgramTime, INTERVAL ' . $beforeminutes . ' MINUTE) AND DATE_ADD(p.ProgramTime, INTERVAL ' . $bufferminutes . ' MINUTE) AND t.DistrictResidentID < 6)  UNION ALL  (SELECT p.ProgramName, p.ProgramTime, p.SecondTierMinutes As RegistrationDelay, l.LocationDescription, p.AgeRange, p.Capacity AS LocationCapacity, p.Grace as GraceSpaces, e.TicketsHeld, p.ChildOnly AS ChildOnly, e.EventID, 0 AS OoDTickets, (IFNULL(t.Adults,0) + IFNULL(t.Children,0)) AS DTickets FROM TicketedPrograms p INNER JOIN TicketedEvents e ON p.ProgramID = e.ProgramID INNER JOIN TicketLocations l ON p.LocationID = l.LocationID INNER JOIN Tickets t ON e.EventID = t.EventID WHERE e.EventDate = ? AND ? BETWEEN DATE_SUB(p.ProgramTime, INTERVAL ' . $beforeminutes . ' MINUTE) AND DATE_ADD(p.ProgramTime, INTERVAL ' . $bufferminutes . ' MINUTE) AND t.DistrictResidentID > 5)) t GROUP BY EventID ORDER BY ProgramTime ASC;') or die &return_error("Could not prepare out of district query", $DBI::errstr);
 $sth->execute($today, $time, $today, $time, $today, $time) or die &return_error("Could not execute out of district query", $DBI::errstr);
 
 my @events;
@@ -157,20 +162,23 @@ while (my @row = $sth->fetchrow_array) {
         $ages = $1;
         $agequal = $2;
     }
+    my $tickets = 0;
+    my $childonly = $row[8];
     my $regdelay = $row[2];
     my $capacity = $row[5];
     my $gracespaces = $row[6];
     my $ticketsheld = $row[7];
     my $oodtickets = 0;
     my $dtickets = 0;
-    if (defined($row[9])) {
-        $oodtickets = $row[9];
-    }
     if (defined($row[10])) {
-        $dtickets = $row[10];
+        $oodtickets = $row[10];
     }
-    my $eventid = $row[8];
-	my $eventinfo = "{\"program\": \"$program\", \"time\": \"$time\", \"registrationdelay\": $regdelay, \"location\": \"$location\", \"ages\": \"$ages\", \"age_qualifier\": \"$agequal\", \"capacity\": $capacity, \"grace\": $gracespaces, \"eventid\": \"$eventid\", \"oodtickets\": $oodtickets, \"dtickets\": $dtickets, \"ticketsheld\": $ticketsheld }";
+    if (defined($row[11])) {
+        $dtickets = $row[11];
+    }
+    my $eventid = $row[9];
+	my $eventinfo = "{\"program\": \"$program\", \"time\": \"$time\", \"registrationdelay\": $regdelay, \"location\": \"$location\", \"ages\": \"$ages\", \"age_qualifier\": \"$agequal\", \"capacity\": $capacity, \"grace\": $gracespaces, \"eventid\": \"$eventid\", \"oodtickets\": $oodtickets, \"dtickets\": $dtickets, \"ticketsheld\": $ticketsheld, \"childonly\": $childonly }";
+    push(@events, $eventinfo);
 }
 
 $response .= "\"events\": [ ";

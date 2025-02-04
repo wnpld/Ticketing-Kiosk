@@ -22,6 +22,7 @@ my $dsn = "DBI:mysql:database=$db_name";
 my $q = CGI->new;
 my $adulttickets = $q->param('adult');
 my $childtickets = $q->param('child');
+my $childonly = $q->param('childonly');
 
 #Variable for total tickets -- needed to pull from held total for in-district requests
 my $tickettotal = 0;
@@ -32,10 +33,15 @@ my $tickettotal = 0;
 
 #Adult & Child tickets need to be checked to make sure that they make sense
 if (($adulttickets =~ /^\d+$/) && ($childtickets =~ /^\d+/)) {
-    if (($adulttickets < 1) || ($adulttickets > $aticketmax)) {
-        $adulttickets = undef;
+    #Adult tickets can be 0 if this is a child only event
+    if ($childonly == 0) {
+        if (($adulttickets < 1) || ($adulttickets > $aticketmax)) {
+            $adulttickets = undef;
+        } else {
+            $tickettotal += $adulttickets;
+        }
     } else {
-        $tickettotal += $adulttickets;
+        $adulttickets = 0;
     }
     if (($childtickets < 1) || ($childtickets > $jticketmax)) {
         $childtickets = undef;
@@ -58,7 +64,9 @@ my $library = $q->param('library');
 
 #library needs to be checked to make sure it's in the right range
 if ($library =~ /^\d+$/) {
-    if ($library >= 9) {
+    if ($library >= 17) {
+        $library = $library - 17;
+    } elsif ($library >= 9) {
         $library = $library - 9;
     } else {
         $library = $library - 1;
