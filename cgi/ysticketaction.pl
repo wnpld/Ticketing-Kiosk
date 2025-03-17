@@ -44,7 +44,7 @@ if ($q->param('Scope') =~ /^[a-z]{3,5}$/) {
 
 if ($scope ne "all") {
     if ($scope eq "adult") {
-        if ($q->param('AdultCount') =~ /^\d$/) {
+        if ($q->param('AdultCount') =~ /^\d+$/) {
             $adultcount = $q->param('AdultCount');
             if ($adultcount < 1) {
                 #This value makes no sense as a starting point for reducing adult tickets
@@ -53,7 +53,7 @@ if ($scope ne "all") {
             }
         }
     } elsif ($scope eq "child") {
-        if ($q->param('ChildCount') =~ /^\d$/) {
+        if ($q->param('ChildCount') =~ /^\d+$/) {
             $childcount = $q->param('ChildCount');
             if ($childcount <= 1) {
                 #This value makes no sense as a starting point for reducing child tickets
