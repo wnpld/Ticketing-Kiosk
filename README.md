@@ -3,7 +3,7 @@
 ## Description
 This is a project designed to be used with a standalone kiosk running a web browser with a barcode scanner and receipt printer attached.  In our case we are using a computer running Kubuntu and Chromium with a kiosk plugin installed, although many different configurations should work.
 
-The parts here are all server-side components, so they are not installed directly on the kiosk itself.  This is the version of the software as first deployed in January of 2025.  It has been written to directly solve the problems we needed to address although there are definitely limitations to its capabilities.  Notably it will not handle ticket race conditions very well, so it is strongly advised that anyone using this software in its current form not have more than one kiosk running at a time as two kiosks running simultaneously could result in too many tickets being issued.
+The parts here are mostly server-side components although there is a Perl script and an image directory which need to run on the kiosk itself.  This is the revised version of the software created in August 2025.  It has been written to directly solve the problems we needed to address although there are definitely limitations to its capabilities.  Notably it will not handle ticket race conditions very well, so it is strongly advised that anyone using this software in its current form not have more than one kiosk running at a time as two kiosks running simultaneously could result in too many tickets being issued.
 
 The primary goal we are trying to achieve with this is the prioritization of local cardholders over non-residents, while still allowing non-residents to get tickets for events once a certain amount of time has been reached.
 
@@ -27,6 +27,22 @@ The following files will need to be customized prior to deployment:
 * public/globals.dart
 * staff/Connections/ticketingdb.php
 * staff/common.php
+
+## Kiosk Software Installation and Configuration
+The kiosk itself needs a Perl script installed to handle printing the receipts.  In the original implementation of this project this was just handled by the web browser.  A number of problems resulted from this, not least of these being the fact that receipt printers need somewhat difficult to find drivers in Linux and CUPS is in the process of eliminating the use of standard print drivers.
+
+The solution here was to set up a Perl script which can communicate with any ESC/POS compatible receipt printer and set that up as the handler of a custom protocol which is invoked by a JavaScript command at the time of printing.  In our implementation this was done on a kiosk running Kubuntu and Firefox connected to a Citizen CT-S310II receipt printer.  If your configuration varies you will likely need to adjust the script and the location of the image files it relies on.
+
+The kioskprint Perl script should be installed in a location in the user's path.  In our case we installed it in /usr/local/bin.  It uses the Printer::ESCPOS module which is available through CPAN.  On Linux you will need to make sure that you have **make** installed via your package manager, and it's a good idea to install as many of the dependencies for Printer::ESCPOS via the package manager as possible to make the installation of the module quicker in CPAN.  You can find more information and the list of dependencies at https://metacpan.org/dist/Printer-ESCPOS.
+
+Since the kioskprint script is run by the kiosk user and it needs to communicate directly to the receipt printer, make sure that the kiosk user has rights to use the printer.  In our case that meant adding the kiosk user to the **lp** group.
+
+You will also need to put copy the **kioskdata** directory in a place that the kiosk user can read but cannot write to.  We moved it to /opt/ and set the permissions to 775.
+
+Finally, you will need to configure your web browser (in my experience Firefox does this best) and possibly the window manager to handle the custom **rcptprt** protocol used so that it runs the Perl script.  The following settings changed in **about:config** seem to work well:
+* network.protocol-handler.app.rcptprt: /usr/local/bin/kioskprint
+* network.protocol-handler.expose.rcptprt: true
+* network.protocol-handler.external.rcptprt: true
 
 ## Pull Requests
 This code has been developed for use by the Winnetka-Northfield Public Library District.  Feel free to fork and reuse it as you see fit.  If you would like to contribute to this and the features are ones that I think would contribute to the project without interfering with our own use case I'd be happy to incorporate them.

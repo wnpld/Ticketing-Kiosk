@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'globals.dart' as globals;
 import 'package:intl/intl.dart';
+import 'dart:js' as js;
 
 //Main function.  Estabilishes/resets language value and global button functions
 Future<void> main() async {
@@ -1031,15 +1032,13 @@ Future<void> sendTicketRequest(MouseEvent event) async {
                     eventLocation = "Location";
                 }
 
-                //Print tickets
-                final DateTime now = DateTime.now();
-                final DateFormat formatter = DateFormat('MMMM d, y');
-                final String today = formatter.format(now);
-                final DateFormat datecode = DateFormat('y-M-d-H-m-');
-                final String code = datecode.format(now) + identifier.substring(24,32);
+                final code = identifier.substring(24,32);
 
-                int adultTickets = int.parse(adultTicketTotal);
-                int childTickets = int.parse(childTicketTotal);
+                //Print tickets
+                //This base64 encodes a pipe delimited string and has the browser
+                //load that under a custom protocol which launches a local
+                //perl script which connects to the printer and prints the tickets
+                String delimiteddata = eventName + "|" + eventTime + "|" + eventLocation + "|" + adultTicketTotal + "|" + childTicketTotal + "|" + code + "|";
 
                 //Setup emoji for printing on ticket
                 int? emojiseed = int.parse(eventid);
@@ -1054,51 +1053,30 @@ Future<void> sendTicketRequest(MouseEvent event) async {
                     //That range is 0-32, so add one
                     emojiseed++;
 
-                    //Derive the image filename from the seed
+                    //Obtain the emoji number from the seed
                     if (emojiseed < 10) {
-                        emojiid = "#emoji0" + emojiseed.toString();
+                        emojiid = "0" + emojiseed.toString();
                     } else {
-                        emojiid = "#emoji" + emojiseed.toString();
+                        emojiid = emojiseed.toString();
                     }
                 } else {
                     //Something has gone really wrong here.
                     //Use the default emoji
-                    emojiid = "emoji01";
+                    emojiid = "01";
                     print("Failed to identify emoji for event id " + eventid + " because string couldn't be converted to an integer.");
                 }
 
-                //Establish element for emoji display
-                Element? emojiblock = document.querySelector(emojiid);
-                emojiblock?.style.display = "inline";
+                delimiteddata = delimiteddata + emojiid;
+                final ddatabytes = utf8.encode(delimiteddata);
+                final encodeddata = base64.encode(ddatabytes);
+                String url = "rcptprt://" + encodeddata;
+                js.context.callMethod('open', [url, '_self']);
 
-                int ticketCounter = 1;
-                int allTickets = adultTickets + childTickets;
-                if (adultTickets > 0) {
-                    for (int x = 1; x <= adultTickets; x++) {
-                        document.querySelector('#eventprint')?.text = eventName;
-                        document.querySelector('#timeprint')?.text = eventTime;
-                        document.querySelector('#roomprint')?.text = eventLocation;
-                        document.querySelector('#dateprint')?.text = today;
-                        document.querySelector('#ageprint')?.text = "1 ADULT";
-                        document.querySelector('#countprint')?.text = "Ticket " + ticketCounter.toString() + " of  " + allTickets.toString();
-                        document.querySelector('#codeprint')?.text = "Order #: " + code + "(" + x.toString() + ")";
-                        window.print(); //Should have browser set to print.always_print_silent
-                        await Future.delayed(Duration(seconds: 1));
-                        ticketCounter++;
-                    }
-                }
-                for (int x = 1; x <= childTickets; x++) {
-                    document.querySelector('#eventprint')?.text = eventName;
-                    document.querySelector('#timeprint')?.text = eventTime;
-                    document.querySelector('#roomprint')?.text = eventLocation;
-                    document.querySelector('#dateprint')?.text = today;
-                    document.querySelector('#ageprint')?.text = "1 CHILD";
-                    document.querySelector('#countprint')?.text = "Ticket " + ticketCounter.toString() + " of " + allTickets.toString();
-                    document.querySelector('#codeprint')?.text = "Order #: " + code + "(" + x.toString() + ")";
-                    window.print(); //Should have browser set to print.always_print_silent
-                    await Future.delayed(Duration(seconds: 1));
-                    ticketCounter++;            
-                }
+                //Used for troubleshooting
+                //var printurl = querySelector('#printurl') as AnchorElement;
+                //printurl?.href = url;
+                //printurl?.text = url;
+
                 /* With the print commands sent, display the printing message.
                 If this is done earlier than this point the display command
                 overrides the command making sure that it says hidden for printing. */

@@ -12,7 +12,6 @@ Element? manualblock = document.querySelector('#manual');
 Element? seblock = document.querySelector('#selectevent');
 Element? stblock = document.querySelector('#selecttickets');
 Element? finishblock = document.querySelector('#finish');
-Element? printblock = document.querySelector('#print');
 Element? errorblock = document.querySelector('#error');
 Element? barcodespan = document.querySelector('#enteredbarcode');
 Element? errorheader = document.querySelector('#errorheader');

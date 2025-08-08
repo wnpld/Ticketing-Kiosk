@@ -1,0 +1,136 @@
+#!/usr/bin/perl
+
+use Printer::ESCPOS;
+use GD;
+use Image::Scale;
+use MIME::Base64 qw(decode_base64);
+use DateTime;
+use strict;
+
+my ($input) = @ARGV;
+my $encoded;
+# Troubleshooting
+#&logger("input: " . $input);
+
+if ($input =~ /rcptprt:\/\/(.*)/) {
+    $encoded = $1;
+} else {
+    $encoded = $input;
+}
+
+# Data is passed to this script as a base64 encoded string
+# It needs to be decoded and parsed
+
+my $decoded = decode_base64($encoded) or die "Could not decode string\n";
+# Troubleshooting
+#&logger("decoded: " . $decoded);
+
+my ($program, $time, $room, $adult, $child, $code, $image) = split(/\|/, $decoded);
+my $total = $adult + $child;
+# Troubleshooting
+#&logger("p: " . $program . "/t: " . $time . "/r: " . $room . "/a: " . $adult . "/c: " . $child . "/code: " . $code . "/i: " . $image);
+
+# This should be the path to the images used for tickets
+# It needs to be readable by the Kiosk user but should
+# not be writeable
+my $imagepath = "/opt/kioskdata/em" . $image . ".png";
+
+# Change these to match the vendor and 
+# product ids for your printer (lsusb)
+my $vendorId = 0x1d90;
+my $productId = 0x2060;
+
+# This should match the endpoint address value for
+# your printer (lsusb -vv)
+my $endpoint = 0x02;
+
+# This should be your printer's paper width in pixels
+my $pwidth = 574;
+
+my $device = Printer::ESCPOS->new(
+	driverType => 'USB',
+	vendorId   => $vendorId,
+	productId  => $productId,
+	endPoint   => $endpoint,
+);
+
+my $dt = DateTime->now;
+my $date = $dt->strftime("%B %e, %Y");
+$date =~ s/  / /; # Removes excessive space padding
+my $datecode = $dt->strftime("%Y-%m-%d-%I-%M");
+my $codestring = "Order #: $datecode-$code";
+# Troubleshooting
+#&logger("total: " . $total);
+
+for (my $x = 1; $x <= $total; $x++) {
+  my $audience = "1 CHILD";
+  if ($x <= $adult) {
+    $audience = "1 ADULT";
+  }
+  my $count = "Ticket $x of $total"; 
+
+  $device->printer->init();
+  $device->printer->printAreaWidth( $pwidth );
+
+  $device->printer->justify('center');
+  $device->printer->lineSpacing('150');
+  $device->printer->font('a');
+
+  # Program Name
+  $device->printer->fontHeight(2);
+  $device->printer->fontWidth(1);
+  $device->printer->bold(1);
+  $device->printer->text($program . "\n");
+
+  # Program Time
+  $device->printer->fontHeight(2);
+  $device->printer->fontWidth(3);
+  $device->printer->text($time . "\n");
+
+  # Program Room
+  $device->printer->fontHeight(1);
+  $device->printer->fontWidth(2);
+  $device->printer->bold(0);
+  $device->printer->text($room . "\n");
+
+  # Today's Date (it's assumed tickets are for today)
+  $device->printer->fontHeight(0);
+  $device->printer->fontWidth(1);
+  $device->printer->text($date . "\n");
+
+  # Adult or Child Ticket
+  $device->printer->fontHeight(2);
+  $device->printer->fontWidth(4);
+  $device->printer->bold(1);
+  $device->printer->text($audience . "\n");
+
+  # Ticket Count
+  $device->printer->fontHeight(1);
+  $device->printer->fontWidth(1);
+  $device->printer->bold(0);
+  $device->printer->text($count . "\n");
+
+  # Date and Identifier Code
+  $device->printer->fontHeight(0);
+  $device->printer->fontWidth(0);
+  $device->printer->text($codestring . "\n");
+
+  # Add image to the bottom
+  my $img = newFromPng GD::Image($imagepath) || die "Error $!";
+  $device->printer->image($img);
+  $device->printer->text("\n");
+
+  # Indicate that the paper is going to be cut
+  $device->printer->cutPaper();
+
+  # Send the Prepared data to the printer.
+  $device->printer->print();
+}
+exit;
+
+sub logger {
+  my ($logdata) = @_;
+  open(my $fh, ">>", "/home/kiosk/log.txt") or die "Couldn't open log.";
+  print $fh $logdata . "\n";
+  close($fh);
+}
