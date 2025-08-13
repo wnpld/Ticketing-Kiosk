@@ -35,6 +35,8 @@ The solution here was to set up a Perl script which can communicate with any ESC
 
 The kioskprint Perl script should be installed in a location in the user's path.  In our case we installed it in /usr/local/bin.  It uses the Printer::ESCPOS module which is available through CPAN.  On Linux you will need to make sure that you have **make** installed via your package manager, and it's a good idea to install as many of the dependencies for Printer::ESCPOS via the package manager as possible to make the installation of the module quicker in CPAN.  You can find more information and the list of dependencies at https://metacpan.org/dist/Printer-ESCPOS.
 
+The Image::Scale and DateTime Perl modules also need to be installed.
+
 Since the kioskprint script is run by the kiosk user and it needs to communicate directly to the receipt printer, make sure that the kiosk user has rights to use the printer.  In our case that meant adding the kiosk user to the **lp** group.
 
 You will also need to put copy the **kioskdata** directory in a place that the kiosk user can read but cannot write to.  We moved it to /opt/ and set the permissions to 775.
@@ -43,6 +45,8 @@ Finally, you will need to configure your web browser (in my experience Firefox d
 * network.protocol-handler.app.rcptprt: /usr/local/bin/kioskprint
 * network.protocol-handler.expose.rcptprt: true
 * network.protocol-handler.external.rcptprt: true
+
+It may be necessary to establish a handler on the OS level as well.  This will vary by OS (and in the case of Linux, by Window Manager).
 
 ## Pull Requests
 This code has been developed for use by the Winnetka-Northfield Public Library District.  Feel free to fork and reuse it as you see fit.  If you would like to contribute to this and the features are ones that I think would contribute to the project without interfering with our own use case I'd be happy to incorporate them.
